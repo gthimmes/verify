@@ -1,11 +1,11 @@
 # Architecture
 
-Verify is a small server-rendered web app over a relational schema. There are intentionally no separate API tier, no client-side data store, and no background workers. The split is:
+Verify is a two-process system:
 
-- **Server Components** read the database and render HTML.
-- **Server Actions** mutate the database, write audit rows, revalidate paths.
-- **Client Components** are surgical: forms with multi-step state (TestCaseForm), modals (Dialog), and the run-execution row that does optimistic record-and-save.
-- **Prisma** is the single point of contact with SQLite via the better-sqlite3 driver adapter. There is no second persistence layer.
+- A **Go HTTP service** that owns the schema, validation, and business logic. It exposes a versioned REST API at `/api/v1`.
+- A **Next.js app** that renders the UI. Server Components fetch from the Go API. Server Actions Zod-validate form input and proxy to the same API.
+
+There is no shared database connection between the two. The Next.js process does not depend on `pg`, `prisma`, or any other Postgres client. If you swap the UI tomorrow (mobile app, CLI, another web framework) the API contract is the only thing you have to honor.
 
 This document captures the load-bearing decisions. For *how to add a feature* read [AGENTS.md](../AGENTS.md). For *what's coming* read [ROADMAP.md](./ROADMAP.md).
 
@@ -13,81 +13,104 @@ This document captures the load-bearing decisions. For *how to add a feature* re
 
 ```
 User ─┐
-      ├── ProjectMember ─── Project ── Area ── Feature ── TestCase ── TestStep
-      │                                                       │      ── TestCaseParam
-      │                                                       │      ── TestCaseDataRow
-      │                                                       │      ── TestCaseTag ── Tag
-      │                                                       │      ── TestCaseRelation
-      │                                                       │      ── TestCaseVersion
-      │                                                       └── Attachment
+      ├── project_members ─── projects ── areas ── features ── test_cases ── test_steps
+      │                                                            │       ── test_case_params
+      │                                                            │       ── test_case_data_rows
+      │                                                            │       ── test_case_tags ── tags
+      │                                                            │       ── test_case_versions
       │                       │
-      │                       ├── TestRun ── RunSnapshotCase ── TestExecution ── ExecutionAttempt
-      │                       │                              ── Attachment
-      │                       └── TestCaseTemplate
-      └── AuditLog
+      │                       └── test_runs ── run_snapshot_cases ── test_executions ── execution_attempts
+      └── audit_logs
 ```
 
 Highlights:
 
-- **Public IDs** are derived: `{Project.key}-{Area.key}-{TestCase.sequenceNum padded to 4}`. The sequence is **project-scoped**, the area code is a hint. This means a case keeps its ID if it moves to a different feature inside the same area, but gets a new ID across project moves (we don't support moves across projects in v1).
-- **Soft delete** lives only on `Project` and `TestCase`. Areas, features, runs, and executions are not soft-deletable in v1; archive flags cover the same use case for the hierarchy entities.
-- **Run snapshot** is the single most-important shape decision. `RunSnapshotCase.snapshotJson` is a frozen JSON of `{steps, parameters, dataRows}` at the moment the run was created. The corresponding `TestCase.version` is also recorded so we can reconstruct *which* version was tested. Live edits to a `TestCase` never reach back into a run.
-- **Parameterized executions** are 1-per-row. The schema uses `TestExecution.dataRowIndex` (nullable) and a denormalized `dataRowLabel` so executions can be enumerated and grouped without touching the snapshot blob.
-- **Audit** rows are write-only and live in their own table. They are not joined into the read paths — they're surfaced via a dedicated /admin view today.
+- **Public IDs** are derived: `{projects.key}-{areas.key}-{test_cases.sequence_num padded to 4}`. The sequence is **project-scoped**, the area code is a hint baked into the ID.
+- **Soft delete** lives only on `projects` and `test_cases`. Areas, features, runs, and executions use archive flags or status fields.
+- **Run snapshot** is the most-important shape decision. `run_snapshot_cases.snapshot_json` is a frozen `jsonb` of `{steps, parameters, dataRows}` at the moment the run was created. The corresponding case version is recorded so we can reconstruct *which* version was tested. Live edits to a `test_cases` row never reach back into a run.
+- **Parameterized executions are 1-per-row.** `test_executions.data_row_index` (nullable) is unique per `(run, snapshot_case, data_row_index)` thanks to a partial unique index that also keeps the no-row variant unique.
+- **Audit** rows are write-only and live in their own table. They aren't joined into the read paths — they're surfaced via a dedicated /admin view.
+- **JSON columns** are `jsonb`, not `json`. The few queries that aggregate snapshot data use `jsonb_build_object` to construct payloads server-side and return them as a single column to the Go store.
 
 ## Request lifecycle
 
 A typical mutation:
 
-1. User submits a form in a Client Component or Server Component.
+1. User submits a form in a Server or Client Component.
 2. Form posts to a Server Action (`src/app/actions/<entity>.ts`).
-3. Action zod-parses the form, calls `requireUser()`, runs Prisma writes inside a transaction, writes an `AuditLog` row, calls `revalidatePath` on every affected page.
-4. Action returns a `FormState` for `useActionState`-driven forms, or `redirect`s to the destination for create flows.
-5. Next.js re-renders the affected pages on next navigation; client components hold their state until they're remounted.
+3. The action Zod-parses the form, then calls `api.x(...)` — a function in `src/lib/api.ts` that does `fetch` against the Go service.
+4. The Go handler decodes JSON, calls a method on `*store.Store`, runs SQL inside a `pgx.Tx` when more than one write is involved, writes an `audit_logs` row, and returns a typed response.
+5. The Server Action calls `revalidatePath(...)` for every page that shows the data and either returns a `FormState` or `redirect`s the client.
+6. Next.js re-renders the affected pages on next navigation.
 
-Reads avoid `cacheComponents`. Every page that shows mutable data has `export const dynamic = "force-dynamic"` so revalidation is unambiguous. Static pages would be a nice optimization but the dataset is small enough that re-rendering is fast.
+Reads avoid Next.js's `cacheComponents`. Every page that shows mutable data has `export const dynamic = "force-dynamic"` so revalidation is unambiguous and the Go service is hit every time.
 
-## File organization
+## Module layout
 
-The single rule: **paths in `src/app/` mirror URLs**. There are no routing aliases, no layout cascades beyond the root layout, no parallel routes. If a feature needs nested layouts later (sidebars per project, etc.), introduce them then.
+### Go service
 
-`src/components/` mirrors features:
+```
+backend/
+├── cmd/
+│   ├── server/main.go              # HTTP entrypoint
+│   └── seed/main.go + fixtures.go  # demo data CLI
+└── internal/
+    ├── api/
+    │   ├── router.go               # chi mounting, middleware, decode/encode helpers
+    │   └── handlers.go             # every HTTP handler in one file
+    ├── db/
+    │   ├── db.go                   # connect + embedded migration runner
+    │   └── migrations/0001_init.sql
+    ├── domain/types.go             # JSON request/response shapes
+    └── store/store.go              # every query, transaction-aware
+```
 
-- `ui/` — reusable primitives. Add to here only when used by 2+ features.
-- `projects/`, `testcases/`, `runs/` — feature-scoped components. They can import from `ui/` but not from each other.
-- `shell/` — global chrome (header, footer bits).
+The single rule: **the API is the surface; the store is the implementation.** Handlers don't write SQL, the store doesn't speak HTTP, and `domain` is just shared shapes.
 
-`src/lib/` is small on purpose:
+### Next.js app
 
-- `prisma.ts` — Prisma client singleton with adapter wired up. Don't import the generator output directly anywhere else.
-- `auth.ts` — current user stub. v1 is single-user; switch to a real session when SSO ships.
-- `utils.ts` — pure helpers (cn, date formatting, key generation, padding).
+```
+src/
+├── app/
+│   ├── layout.tsx                  # global shell
+│   ├── actions/                    # Server Actions (mutations)
+│   ├── page.tsx, runs/, search/, admin/
+│   └── projects/[projectId]/...
+├── components/
+│   ├── shell/, ui/                 # primitives
+│   ├── projects/, runs/, testcases/ # feature-scoped components
+└── lib/
+    ├── api.ts                      # the *only* place that calls the Go API
+    ├── auth.ts                     # UI-only current-user stub
+    └── utils.ts
+```
 
-`src/generated/prisma/` is generator output. Treat it as artifact: don't edit, don't import its types except via `@/lib/prisma`'s re-exports.
+`src/lib/api.ts` is intentionally the chokepoint. Everywhere else in `src/` should import the typed `api` object from there. If a new screen needs data not yet exposed by the Go service, the right move is to add an endpoint, then add an `api.x()` method, then write the screen — never `fetch('http://localhost:4000/...')` from a page directly.
 
 ## Why these choices
 
-- **No tRPC, no API tier.** Server Actions cover every mutation we have today. A REST surface ships when the spec needs one (the spec lists "REST API" under integrations — that ships in v2).
-- **No state library.** Forms drive their own state with `useState` and `useActionState`. Server-rendered pages drive everything else. URL search params hold filters and pagination. There is nothing global that would justify Zustand or Redux.
-- **No background workers.** v1 has no scheduled work — automation isn't run from this tool, notifications aren't sent. When v2 brings either, the right place is a route handler under `src/app/api/jobs/` plus a separate process that hits it on a cron, not a long-running daemon embedded in the app.
-- **SQLite + better-sqlite3.** Throughput is plenty for the year-1 scale (2K cases, 500-case runs). When we outgrow it, the migration is to swap the adapter and rewrite the few places that lean on SQLite-isms (currently zero).
-- **Hand-rolled UI primitives.** shadcn would be fine. We didn't use it because the components we needed are small and the CLI is interactive — not a fit for an end-to-end automated build. The components themselves follow shadcn-shaped APIs (Button variant/size, Card/CardHeader/CardBody, Dialog open/onOpenChange) so the swap is easy if/when it pays off.
+- **No tRPC, no shared TypeScript types.** Manually keeping `domain/types.go` aligned with `src/lib/api.ts` is a tiny tax. In return, the API is consumable from anything (curl, mobile, another team's CLI) without a TS toolchain.
+- **No ORM in Go.** Raw SQL is short and obvious here. `pgx` gives us strong types via Scan. The schema fits in one file; an ORM would add ceremony without insight.
+- **No state library on the client.** Forms drive their own state with `useState` and `useActionState`. Server-rendered pages drive everything else. URL search params hold filters and pagination. There is nothing global that would justify Zustand or Redux.
+- **No background workers.** v1 has no scheduled work. When v2 brings notifications or automation execution, the right place is a separate Go binary in `backend/cmd/<job>/main.go`.
+- **Postgres + Docker Compose.** SQLite was good for the first prototype; Postgres scales further, supports `jsonb`, and matches what production usually looks like. `docker-compose.yml` is the local-dev contract.
+- **Hand-rolled UI primitives.** The components we need are small. shadcn would also be fine; the API surface here mirrors shadcn's so a swap is mechanical.
 
 ## Performance shape
 
-- List views (cases, runs) take 200 results max. Pagination is a v1.x improvement; today the page is single-fetch.
-- The Reports page is the heaviest read — it groups executions and joins back to live cases. It's still well under a second on the seed data.
-- Server actions all use `prisma.$transaction` for multi-write paths to keep race conditions out.
-- The Test Case form ships a meaningful amount of JS because it's interactive (steps reorder, params add/remove, data rows). It's still under 50KB gzipped.
+- List endpoints cap at ~200 rows by default. The UI paginates by re-querying with stricter filters. A real cursor API ships when we hit the limit in practice.
+- The `/projects/{id}/report` endpoint is the heaviest read — it groups every execution for the project and joins back to live cases. Still well under a second on the seed.
+- Mutations all use `pgx.Tx` for multi-write paths to keep races out.
+- The Test Case form ships a meaningful amount of JS because it's interactive (steps reorder, params add/remove, data rows). Still under 50KB gzipped.
 
 ## What's intentionally not done in v1
 
 - Real auth (the user is mocked).
 - Email/Slack notifications.
-- File attachments (the schema is there; no upload UI).
-- Templates UI (the schema is there; admin-only path is reserved).
-- BDD/Gherkin authoring.
+- File attachments (the schema design exists; no upload UI).
+- Templates UI.
+- BDD / Gherkin authoring.
 - Multi-org tenancy.
-- WebSocket-driven live progress on the run execution page (page revalidation covers it for now).
+- WebSocket-driven live progress on the run-execution page.
 
 These are listed in [ROADMAP.md](./ROADMAP.md) with rough order.

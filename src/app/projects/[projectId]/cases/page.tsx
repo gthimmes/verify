@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { Badge, automationTone, priorityTone } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -30,59 +30,28 @@ export default async function CasesListPage({
 }) {
   const { projectId } = await params;
   const sp = await searchParams;
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, deletedAt: null },
-  });
-  if (!project) return notFound();
-
-  const where: any = {
-    projectId,
-    deletedAt: sp.archived === "1" ? { not: null } : null,
-  };
-  if (sp.type && sp.type !== "all") where.type = sp.type;
-  if (sp.priority && sp.priority !== "all") where.priority = sp.priority;
-  if (sp.status && sp.status !== "all") where.status = sp.status;
-  if (sp.automation && sp.automation !== "all")
-    where.automationStatus = sp.automation;
-  if (sp.feature && sp.feature !== "all") where.featureId = sp.feature;
-  if (sp.area && sp.area !== "all") where.feature = { areaId: sp.area };
-  if (sp.tag) where.tags = { some: { tag: { name: sp.tag } } };
-  if (sp.q) {
-    const q = sp.q.trim();
-    where.OR = [
-      { title: { contains: q } },
-      { description: { contains: q } },
-      { publicId: { contains: q } },
-      { steps: { some: { action: { contains: q } } } },
-      { steps: { some: { expected: { contains: q } } } },
-    ];
+  let project, areas, features;
+  try {
+    [project, areas, features] = await Promise.all([
+      api.getProject(projectId),
+      api.listAreas(projectId),
+      api.listFeatures(projectId),
+    ]);
+  } catch {
+    return notFound();
   }
-
-  const [cases, areas, features, tags] = await Promise.all([
-    prisma.testCase.findMany({
-      where,
-      orderBy: { sequenceNum: "desc" },
-      take: 200,
-      include: {
-        feature: { include: { area: true } },
-        tags: { include: { tag: true } },
-        _count: { select: { dataRows: true } },
-      },
-    }),
-    prisma.area.findMany({
-      where: { projectId },
-      orderBy: { displayOrder: "asc" },
-    }),
-    prisma.feature.findMany({
-      where: { area: { projectId } },
-      include: { area: true },
-      orderBy: [{ area: { displayOrder: "asc" } }, { displayOrder: "asc" }],
-    }),
-    prisma.tag.findMany({
-      where: { cases: { some: { testCase: { projectId } } } },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const cases = await api.listCases(projectId, {
+    archived: sp.archived === "1" ? "1" : undefined,
+    type: sp.type === "all" ? undefined : sp.type,
+    priority: sp.priority === "all" ? undefined : sp.priority,
+    status: sp.status === "all" ? undefined : sp.status,
+    automationStatus: sp.automation === "all" ? undefined : sp.automation,
+    featureId: sp.feature === "all" ? undefined : sp.feature,
+    areaId: sp.area === "all" ? undefined : sp.area,
+    tag: sp.tag,
+    q: sp.q,
+    limit: "200",
+  });
 
   return (
     <PageContainer>
@@ -123,11 +92,14 @@ export default async function CasesListPage({
           </Select>
           <Select name="feature" defaultValue={sp.feature ?? "all"}>
             <option value="all">All features</option>
-            {features.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.area.name} › {f.name}
-              </option>
-            ))}
+            {features.map((f) => {
+              const a = areas.find((x) => x.id === f.areaId);
+              return (
+                <option key={f.id} value={f.id}>
+                  {a?.name ?? "?"} › {f.name}
+                </option>
+              );
+            })}
           </Select>
           <Select name="priority" defaultValue={sp.priority ?? "all"}>
             <option value="all">Any priority</option>
@@ -165,22 +137,12 @@ export default async function CasesListPage({
               <thead className="border-b border-(--border) bg-(--bg) text-left">
                 <tr>
                   <th className="px-3 py-2 text-xs font-medium text-(--muted)">ID</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                    Title
-                  </th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                    Feature
-                  </th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                    Priority
-                  </th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Title</th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Feature</th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Priority</th>
                   <th className="px-3 py-2 text-xs font-medium text-(--muted)">Type</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                    Status
-                  </th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                    Automation
-                  </th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Status</th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Automation</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,32 +168,30 @@ export default async function CasesListPage({
                       >
                         {c.title}
                       </Link>
-                      {c._count.dataRows > 0 ? (
+                      {c.dataRowCount > 0 ? (
                         <span className="ml-2 inline-flex items-center text-[11px] text-(--muted)">
-                          ({c._count.dataRows} rows)
+                          ({c.dataRowCount} rows)
                         </span>
                       ) : null}
                       {c.tags.length > 0 ? (
                         <div className="mt-0.5 flex flex-wrap gap-1">
                           {c.tags.map((t) => (
-                            <Badge key={t.tagId} tone="muted">
-                              {t.tag.name}
+                            <Badge key={t} tone="muted">
+                              {t}
                             </Badge>
                           ))}
                         </div>
                       ) : null}
                     </td>
                     <td className="px-3 py-2 text-xs text-(--muted)">
-                      {c.feature.area.name} › {c.feature.name}
+                      {c.areaName} › {c.featureName}
                     </td>
                     <td className="px-3 py-2">
                       <Badge tone={priorityTone(c.priority)}>{c.priority}</Badge>
                     </td>
                     <td className="px-3 py-2 text-xs">{c.type}</td>
                     <td className="px-3 py-2 text-xs">
-                      <Badge
-                        tone={c.status === "deprecated" ? "muted" : "default"}
-                      >
+                      <Badge tone={c.status === "deprecated" ? "muted" : "default"}>
                         {c.status}
                       </Badge>
                     </td>

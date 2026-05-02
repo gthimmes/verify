@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import {
-  PageContainer,
-  PageHeader,
-} from "@/components/ui/PageHeader";
+import { api } from "@/lib/api";
+import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { TestCaseForm } from "@/components/testcases/TestCaseForm";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +14,16 @@ export default async function NewCasePage({
 }) {
   const { projectId } = await params;
   const { featureId } = await searchParams;
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, deletedAt: null },
-  });
-  if (!project) return notFound();
-  const features = await prisma.feature.findMany({
-    where: { area: { projectId }, archived: false },
-    include: { area: true },
-    orderBy: [{ area: { displayOrder: "asc" } }, { displayOrder: "asc" }],
-  });
+  let project, features, areas;
+  try {
+    [project, features, areas] = await Promise.all([
+      api.getProject(projectId),
+      api.listFeatures(projectId),
+      api.listAreas(projectId),
+    ]);
+  } catch {
+    return notFound();
+  }
 
   return (
     <PageContainer>
@@ -44,7 +42,7 @@ export default async function NewCasePage({
         features={features.map((f) => ({
           id: f.id,
           name: f.name,
-          areaName: f.area.name,
+          areaName: areas.find((a) => a.id === f.areaId)?.name ?? "?",
         }))}
         initial={{
           projectId,

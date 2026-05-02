@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { PageContainer, PageHeader, EmptyState } from "@/components/ui/PageHeader";
@@ -15,36 +15,7 @@ export default async function HomePage({
 }) {
   const { archived } = await searchParams;
   const showArchived = archived === "1";
-
-  const projects = await prisma.project.findMany({
-    where: { deletedAt: null, ...(showArchived ? {} : { status: "active" }) },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      _count: { select: { testCases: true, testRuns: true, areas: true } },
-    },
-  });
-
-  const projectStats = await Promise.all(
-    projects.map(async (p) => {
-      const [activeRuns, automated] = await Promise.all([
-        prisma.testRun.count({
-          where: {
-            projectId: p.id,
-            status: { in: ["draft", "in_progress", "blocked"] },
-          },
-        }),
-        prisma.testCase.count({
-          where: {
-            projectId: p.id,
-            deletedAt: null,
-            automationStatus: { in: ["full", "partial"] },
-          },
-        }),
-      ]);
-      return { id: p.id, activeRuns, automated };
-    }),
-  );
-  const statsById = Object.fromEntries(projectStats.map((s) => [s.id, s]));
+  const projects = await api.listProjects(showArchived);
 
   return (
     <PageContainer>
@@ -76,11 +47,10 @@ export default async function HomePage({
           data-testid="project-grid"
         >
           {projects.map((p) => {
-            const s = statsById[p.id];
             const automationPct =
-              p._count.testCases === 0
+              p.testCaseCount === 0
                 ? null
-                : Math.round(((s?.automated ?? 0) / p._count.testCases) * 100);
+                : Math.round((p.automatedCount / p.testCaseCount) * 100);
             return (
               <Link
                 key={p.id}
@@ -110,25 +80,25 @@ export default async function HomePage({
                     <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-(--muted)">
                       <div>
                         <div className="text-base font-semibold text-(--fg)">
-                          {p._count.testCases}
+                          {p.testCaseCount}
                         </div>
                         <div>Test cases</div>
                       </div>
                       <div>
                         <div className="text-base font-semibold text-(--fg)">
-                          {p._count.areas}
+                          {p.areaCount}
                         </div>
                         <div>Areas</div>
                       </div>
                       <div>
                         <div className="text-base font-semibold text-(--fg)">
-                          {p._count.testRuns}
+                          {p.runCount}
                         </div>
                         <div>Runs</div>
                       </div>
                       <div>
                         <div className="text-base font-semibold text-(--fg)">
-                          {s?.activeRuns ?? 0}
+                          {p.activeRunCount}
                         </div>
                         <div>Active</div>
                       </div>

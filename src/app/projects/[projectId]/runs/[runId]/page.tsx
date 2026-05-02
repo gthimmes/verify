@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { Badge, resultTone, runStatusTone } from "@/components/ui/Badge";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -17,37 +17,14 @@ export default async function RunDetailPage({
   params: Promise<{ projectId: string; runId: string }>;
 }) {
   const { projectId, runId } = await params;
-  const run = await prisma.testRun.findFirst({
-    where: { id: runId, projectId },
-    include: {
-      project: true,
-      owner: true,
-      parentRun: true,
-      executions: {
-        include: {
-          executedBy: true,
-          snapshotCase: true,
-        },
-        orderBy: [
-          { snapshotCase: { publicId: "asc" } },
-          { dataRowIndex: "asc" },
-        ],
-      },
-    },
-  });
-  if (!run) return notFound();
+  let run, executions;
+  try {
+    [run, executions] = await Promise.all([api.getRun(runId), api.listExecutions(runId)]);
+  } catch {
+    return notFound();
+  }
 
-  const counts = {
-    total: run.executions.length,
-    pass: 0,
-    fail: 0,
-    blocked: 0,
-    skipped: 0,
-    not_run: 0,
-  };
-  run.executions.forEach((e) => {
-    counts[e.result as keyof typeof counts]++;
-  });
+  const counts = run.counts;
   const done = counts.pass + counts.fail + counts.blocked + counts.skipped;
   const completion = counts.total === 0 ? 0 : (done / counts.total) * 100;
   const passRate =
@@ -57,7 +34,7 @@ export default async function RunDetailPage({
 
   // breakdown by priority
   const byPriority = new Map<string, { total: number; pass: number; fail: number }>();
-  run.executions.forEach((e) => {
+  executions.forEach((e) => {
     const k = e.snapshotCase.priority;
     const prev = byPriority.get(k) ?? { total: 0, pass: 0, fail: 0 };
     prev.total++;
@@ -71,26 +48,20 @@ export default async function RunDetailPage({
       <PageHeader
         breadcrumbs={[
           { label: "Projects", href: "/" },
-          { label: run.project.name, href: `/projects/${projectId}` },
+          { label: run.projectName, href: `/projects/${projectId}` },
           { label: "Runs", href: `/projects/${projectId}/runs` },
           { label: run.name },
         ]}
         title={
           <span className="flex items-center gap-2">
             <span>{run.name}</span>
-            <Badge tone={runStatusTone(run.status)}>
-              {run.status.replace("_", " ")}
-            </Badge>
+            <Badge tone={runStatusTone(run.status)}>{run.status.replace("_", " ")}</Badge>
           </span>
         }
         description={run.description ?? "Snapshot of a moment in time."}
         actions={
           <>
-            <RunStatusActions
-              runId={run.id}
-              projectId={projectId}
-              status={run.status}
-            />
+            <RunStatusActions runId={run.id} projectId={projectId} status={run.status} />
             <Link href={`/projects/${projectId}/runs/${run.id}/execute`}>
               <Button data-testid="execute-cta">Execute tests</Button>
             </Link>
@@ -104,37 +75,23 @@ export default async function RunDetailPage({
             <CardHeader title="Progress" />
             <CardBody className="flex flex-col gap-4">
               <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="bg-(--success)"
-                  style={{ width: `${(counts.pass / Math.max(1, counts.total)) * 100}%` }}
-                />
-                <div
-                  className="bg-(--danger)"
-                  style={{ width: `${(counts.fail / Math.max(1, counts.total)) * 100}%` }}
-                />
-                <div
-                  className="bg-(--warn)"
-                  style={{ width: `${(counts.blocked / Math.max(1, counts.total)) * 100}%` }}
-                />
-                <div
-                  className="bg-slate-300"
-                  style={{ width: `${(counts.skipped / Math.max(1, counts.total)) * 100}%` }}
-                />
+                <div className="bg-(--success)" style={{ width: `${(counts.pass / Math.max(1, counts.total)) * 100}%` }} />
+                <div className="bg-(--danger)" style={{ width: `${(counts.fail / Math.max(1, counts.total)) * 100}%` }} />
+                <div className="bg-(--warn)" style={{ width: `${(counts.blocked / Math.max(1, counts.total)) * 100}%` }} />
+                <div className="bg-slate-300" style={{ width: `${(counts.skipped / Math.max(1, counts.total)) * 100}%` }} />
               </div>
               <div className="grid grid-cols-3 gap-3 lg:grid-cols-5">
                 <Stat label="Total" value={counts.total} tone="muted" />
                 <Stat label="Pass" value={counts.pass} tone="success" />
                 <Stat label="Fail" value={counts.fail} tone="danger" />
                 <Stat label="Blocked" value={counts.blocked} tone="warn" />
-                <Stat label="Not run" value={counts.not_run} tone="muted" />
+                <Stat label="Not run" value={counts.notRun} tone="muted" />
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs text-(--muted)">
                 <div>Completion: {Math.round(completion)}%</div>
                 <div>
                   Pass rate: {passRate === null ? "—" : `${passRate}%`}{" "}
-                  <span className="text-(--muted-2)">
-                    (of pass+fail only)
-                  </span>
+                  <span className="text-(--muted-2)">(of pass+fail only)</span>
                 </div>
               </div>
             </CardBody>
@@ -143,33 +100,21 @@ export default async function RunDetailPage({
           <Card>
             <CardHeader
               title="Executions"
-              description={`${counts.total} executions across ${new Set(
-                run.executions.map((e) => e.snapshotCaseId),
-              ).size} cases.`}
+              description={`${counts.total} executions across ${new Set(executions.map((e) => e.snapshotCaseId)).size} cases.`}
             />
             <CardBody className="-m-5 overflow-x-auto p-0">
               <table className="min-w-full text-sm" data-testid="run-executions-table">
                 <thead className="border-b border-(--border) bg-(--bg) text-left">
                   <tr>
-                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                      Case
-                    </th>
-                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                      Title
-                    </th>
-                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                      Row
-                    </th>
-                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                      Result
-                    </th>
-                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">
-                      Executed
-                    </th>
+                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">Case</th>
+                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">Title</th>
+                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">Row</th>
+                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">Result</th>
+                    <th className="px-3 py-2 text-xs font-medium text-(--muted)">Executed</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {run.executions.map((e) => (
+                  {executions.map((e) => (
                     <tr
                       key={e.id}
                       className="border-b border-(--border) hover:bg-(--accent-soft)"
@@ -190,18 +135,12 @@ export default async function RunDetailPage({
                           {e.snapshotCase.title}
                         </Link>
                       </td>
-                      <td className="px-3 py-2 text-xs text-(--muted)">
-                        {e.dataRowLabel ?? "—"}
-                      </td>
+                      <td className="px-3 py-2 text-xs text-(--muted)">{e.dataRowLabel ?? "—"}</td>
                       <td className="px-3 py-2">
-                        <Badge tone={resultTone(e.result)}>
-                          {e.result.replace("_", " ")}
-                        </Badge>
+                        <Badge tone={resultTone(e.result)}>{e.result.replace("_", " ")}</Badge>
                       </td>
                       <td className="px-3 py-2 text-xs text-(--muted)">
-                        {formatDateTime(e.executedAt) === "—"
-                          ? "—"
-                          : `${e.executedBy?.name ?? "?"} · ${formatDateTime(e.executedAt)}`}
+                        {e.executedAt ? `${e.executedByName ?? "?"} · ${formatDateTime(e.executedAt)}` : "—"}
                       </td>
                     </tr>
                   ))}
@@ -215,7 +154,7 @@ export default async function RunDetailPage({
           <Card>
             <CardHeader title="Run metadata" />
             <CardBody className="flex flex-col gap-3 text-sm">
-              <KV label="Owner">{run.owner.name}</KV>
+              <KV label="Owner">{run.ownerName}</KV>
               <KV label="Environment">{run.environment ?? "—"}</KV>
               <KV label="Build">
                 <span className="font-mono text-xs">{run.build ?? "—"}</span>
@@ -228,13 +167,13 @@ export default async function RunDetailPage({
                 {formatDate(run.actualStart)} → {formatDate(run.actualEnd)}
               </KV>
               <KV label="Created">{formatDate(run.createdAt)}</KV>
-              {run.parentRun ? (
+              {run.parentRunId ? (
                 <KV label="Re-run of">
                   <Link
-                    href={`/projects/${projectId}/runs/${run.parentRun.id}`}
+                    href={`/projects/${projectId}/runs/${run.parentRunId}`}
                     className="text-(--accent) hover:underline"
                   >
-                    {run.parentRun.name}
+                    {run.parentRunName ?? "parent"}
                   </Link>
                 </KV>
               ) : null}

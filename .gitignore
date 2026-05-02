@@ -29,6 +29,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -40,15 +41,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
-
-# local SQLite + dev logs
-dev.db
-dev.db-journal
-dev.log
+# Go build artifacts
+/backend/server.exe
+/backend/seed.exe
+/backend/*.exe
 
 # Playwright artifacts (kept in docs/media/ for shipping)
 /playwright-report/
 /test-results/
 /blob-report/
-

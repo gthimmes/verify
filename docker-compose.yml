@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: verify-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: verify
+      POSTGRES_PASSWORD: verify
+      POSTGRES_DB: verify
+    ports:
+      - "5432:5432"
+    volumes:
+      - verify-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verify -d verify"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  verify-pgdata:

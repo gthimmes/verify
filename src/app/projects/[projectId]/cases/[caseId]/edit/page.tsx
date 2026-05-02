@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { TestCaseForm } from "@/components/testcases/TestCaseForm";
 
@@ -11,25 +11,17 @@ export default async function EditCasePage({
   params: Promise<{ projectId: string; caseId: string }>;
 }) {
   const { projectId, caseId } = await params;
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
-  if (!project) return notFound();
-
-  const tc = await prisma.testCase.findFirst({
-    where: { id: caseId, projectId },
-    include: {
-      steps: { orderBy: { order: "asc" } },
-      parameters: { orderBy: { order: "asc" } },
-      dataRows: { orderBy: { order: "asc" } },
-      tags: { include: { tag: true } },
-    },
-  });
-  if (!tc) return notFound();
-
-  const features = await prisma.feature.findMany({
-    where: { area: { projectId } },
-    include: { area: true },
-    orderBy: [{ area: { displayOrder: "asc" } }, { displayOrder: "asc" }],
-  });
+  let project, tc, features, areas;
+  try {
+    [project, tc, features, areas] = await Promise.all([
+      api.getProject(projectId),
+      api.getCase(caseId),
+      api.listFeatures(projectId),
+      api.listAreas(projectId),
+    ]);
+  } catch {
+    return notFound();
+  }
 
   return (
     <PageContainer>
@@ -49,7 +41,7 @@ export default async function EditCasePage({
         features={features.map((f) => ({
           id: f.id,
           name: f.name,
-          areaName: f.area.name,
+          areaName: areas.find((a) => a.id === f.areaId)?.name ?? "?",
         }))}
         initial={{
           id: tc.id,
@@ -68,12 +60,12 @@ export default async function EditCasePage({
           automationRef: tc.automationRef ?? "",
           automationRepoUrl: tc.automationRepoUrl ?? "",
           jiraKeys: tc.jiraKeys ?? "",
-          tags: tc.tags.map((t) => t.tag.name),
+          tags: tc.tags,
           steps: tc.steps.map((s) => ({ action: s.action, expected: s.expected })),
           parameters: tc.parameters.map((p) => ({ name: p.name })),
           dataRows: tc.dataRows.map((r) => ({
             __label: r.label ?? "",
-            ...JSON.parse(r.valuesJson),
+            ...r.values,
           })),
         }}
       />

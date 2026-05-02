@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { api } from "@/lib/api";
+import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge, runStatusTone } from "@/components/ui/Badge";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
@@ -24,33 +24,21 @@ export default async function ExecuteRunPage({
   const { projectId, runId } = await params;
   const sp = await searchParams;
 
-  const run = await prisma.testRun.findFirst({
-    where: { id: runId, projectId },
-    include: {
-      project: true,
-      executions: {
-        include: {
-          snapshotCase: true,
-          attempts: { orderBy: { attemptNum: "asc" } },
-        },
-        orderBy: [
-          { snapshotCase: { publicId: "asc" } },
-          { dataRowIndex: "asc" },
-        ],
-      },
-    },
-  });
-  if (!run) return notFound();
+  let run, executions;
+  try {
+    [run, executions] = await Promise.all([api.getRun(runId), api.listExecutions(runId)]);
+  } catch {
+    return notFound();
+  }
 
   const filter = sp.filter ?? "all";
-  const filtered = run.executions.filter((e) => {
+  const filtered = executions.filter((e) => {
     if (filter === "not_run") return e.result === "not_run";
     if (filter === "pass") return e.result === "pass";
     if (filter === "fail") return e.result === "fail";
     if (filter === "blocked") return e.result === "blocked";
     if (filter === "skipped") return e.result === "skipped";
-    if (filter === "incomplete")
-      return e.result === "not_run" || e.result === "blocked";
+    if (filter === "incomplete") return e.result === "not_run" || e.result === "blocked";
     return true;
   });
 
@@ -59,7 +47,7 @@ export default async function ExecuteRunPage({
       <PageHeader
         breadcrumbs={[
           { label: "Projects", href: "/" },
-          { label: run.project.name, href: `/projects/${projectId}` },
+          { label: run.projectName, href: `/projects/${projectId}` },
           { label: "Runs", href: `/projects/${projectId}/runs` },
           { label: run.name, href: `/projects/${projectId}/runs/${runId}` },
           { label: "Execute" },
@@ -70,7 +58,7 @@ export default async function ExecuteRunPage({
             <Badge tone={runStatusTone(run.status)}>{run.status}</Badge>
           </span>
         }
-        description={`${filtered.length} of ${run.executions.length} shown`}
+        description={`${filtered.length} of ${executions.length} shown`}
         actions={
           <Link href={`/projects/${projectId}/runs/${runId}`}>
             <Button variant="outline">← Back to summary</Button>
@@ -82,27 +70,27 @@ export default async function ExecuteRunPage({
         <FilterLink
           href={`/projects/${projectId}/runs/${runId}/execute`}
           active={filter === "all"}
-          label={`All (${run.executions.length})`}
+          label={`All (${executions.length})`}
         />
         <FilterLink
           href={`/projects/${projectId}/runs/${runId}/execute?filter=incomplete`}
           active={filter === "incomplete"}
-          label={`Incomplete (${run.executions.filter((e) => e.result === "not_run" || e.result === "blocked").length})`}
+          label={`Incomplete (${executions.filter((e) => e.result === "not_run" || e.result === "blocked").length})`}
         />
         <FilterLink
           href={`/projects/${projectId}/runs/${runId}/execute?filter=pass`}
           active={filter === "pass"}
-          label={`Pass (${run.executions.filter((e) => e.result === "pass").length})`}
+          label={`Pass (${executions.filter((e) => e.result === "pass").length})`}
         />
         <FilterLink
           href={`/projects/${projectId}/runs/${runId}/execute?filter=fail`}
           active={filter === "fail"}
-          label={`Fail (${run.executions.filter((e) => e.result === "fail").length})`}
+          label={`Fail (${executions.filter((e) => e.result === "fail").length})`}
         />
         <FilterLink
           href={`/projects/${projectId}/runs/${runId}/execute?filter=blocked`}
           active={filter === "blocked"}
-          label={`Blocked (${run.executions.filter((e) => e.result === "blocked").length})`}
+          label={`Blocked (${executions.filter((e) => e.result === "blocked").length})`}
         />
       </div>
 
@@ -115,17 +103,16 @@ export default async function ExecuteRunPage({
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((e) => {
-            const snap = JSON.parse(e.snapshotCase.snapshotJson);
             const dataRow =
               e.dataRowIndex !== null
-                ? snap.dataRows.find((r: any) => r.order === e.dataRowIndex)
+                ? e.snapshotCase.dataRows.find((r) => r.order === e.dataRowIndex)
                 : null;
             return (
               <ExecutionRow
                 key={e.id}
                 projectId={projectId}
                 runId={runId}
-                expand={sp.focus === e.id || run.executions.length <= 5}
+                expand={sp.focus === e.id || executions.length <= 5}
                 execution={{
                   id: e.id,
                   result: e.result,
@@ -140,7 +127,7 @@ export default async function ExecuteRunPage({
                   attempts: e.attempts.map((a) => ({
                     attemptNum: a.attemptNum,
                     result: a.result,
-                    executedAt: a.executedAt,
+                    executedAt: new Date(a.executedAt),
                   })),
                   caseSnapshot: {
                     publicId: e.snapshotCase.publicId,
@@ -150,7 +137,11 @@ export default async function ExecuteRunPage({
                     finalExpected: e.snapshotCase.finalExpected,
                     priority: e.snapshotCase.priority,
                     type: e.snapshotCase.type,
-                    steps: snap.steps ?? [],
+                    steps: e.snapshotCase.steps.map((s) => ({
+                      order: s.order,
+                      action: s.action,
+                      expected: s.expected,
+                    })),
                   },
                 }}
               />

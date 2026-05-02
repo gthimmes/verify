@@ -7,21 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx prisma/seed.ts",
+    "api": "go -C backend run ./cmd/server",
+    "seed": "go -C backend run ./cmd/seed",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
     "e2e": "playwright test --project=golden-paths",
     "e2e:headed": "playwright test --project=golden-paths --headed",
     "e2e:demo": "playwright test --project=demo"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.8.0",
-    "@prisma/client": "^7.8.0",
-    "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "dotenv": "^17.4.2",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
-    "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^3.5.0",
@@ -36,7 +34,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

@@ -20,11 +20,11 @@ test("demo tour", async ({ page }) => {
   await pause(page, 1500);
 
   // overview cards
-  await page.locator('[data-project-key="AIW"]').first().hover();
+  await page.locator('[data-project-key="ACM"]').first().hover();
   await pause(page);
 
-  await page.locator('[data-project-key="AIW"]').first().click();
-  await expect(page.getByRole("heading", { name: /Aiwyn Core/ })).toBeVisible();
+  await page.locator('[data-project-key="ACM"]').first().click();
+  await expect(page.getByRole("heading", { name: /Acme Storefront/ })).toBeVisible();
   await pause(page, 1500);
 
   // tour the hierarchy
@@ -36,7 +36,7 @@ test("demo tour", async ({ page }) => {
   await pause(page);
 
   // open a test case
-  await page.getByText("AIW-PAY-0001", { exact: false }).first().click();
+  await page.getByText("ACM-PAY-0001", { exact: false }).first().click();
   await expect(page.getByRole("heading", { name: /Pay an invoice with a credit card/ })).toBeVisible();
   await pause(page, 1500);
   await page.mouse.wheel(0, 400);
@@ -56,7 +56,7 @@ test("demo tour", async ({ page }) => {
 
   // open reports
   await page
-    .getByRole("link", { name: /Aiwyn Core/ })
+    .getByRole("link", { name: /Acme Storefront/ })
     .first()
     .click();
   await page.getByRole("link", { name: "Reports" }).first().click();
@@ -72,13 +72,13 @@ test("demo tour", async ({ page }) => {
 
   // back to project, into runs
   await page
-    .getByRole("link", { name: /Aiwyn Core/ })
+    .getByRole("link", { name: /Acme Storefront/ })
     .first()
     .click();
-  await page.waitForURL(/\/projects\/[\w]+$/);
+  await page.waitForURL(/\/projects\/[\w-]+$/);
   await pause(page, 600);
   await page.locator('a[href*="/projects/"][href$="/runs"]').first().click();
-  await page.waitForURL(/\/projects\/[\w]+\/runs$/);
+  await page.waitForURL(/\/projects\/[\w-]+\/runs$/);
   await expect(page.getByTestId("runs-table")).toBeVisible();
   await pause(page, 1500);
 

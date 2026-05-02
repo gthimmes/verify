@@ -1,9 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { revalidatePath } from "next/cache";
-import { shortKey } from "@/lib/utils";
 
 const AreaInput = z.object({
   projectId: z.string(),
@@ -41,47 +40,24 @@ export async function createArea(
     }
     return { ok: false, message: "Please fix the form.", fieldErrors };
   }
-  const { projectId, name, description } = parsed.data;
-  let key = (parsed.data.key || shortKey(name)).toUpperCase();
-  let suffix = 2;
-  while (await prisma.area.findFirst({ where: { projectId, key } })) {
-    key = `${(parsed.data.key || shortKey(name)).toUpperCase()}${suffix++}`;
-    if (suffix > 50)
-      return { ok: false, message: "Could not generate a unique area key." };
+  try {
+    await api.createArea(parsed.data.projectId, {
+      name: parsed.data.name.trim(),
+      key: parsed.data.key || undefined,
+      description: parsed.data.description ?? undefined,
+    });
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
   }
-
-  const last = await prisma.area.findFirst({
-    where: { projectId },
-    orderBy: { displayOrder: "desc" },
-  });
-
-  await prisma.area.create({
-    data: {
-      projectId,
-      key,
-      name: name.trim(),
-      description: description?.trim() || null,
-      displayOrder: (last?.displayOrder ?? -1) + 1,
-    },
-  });
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
   return { ok: true };
-}
-
-export async function renameArea(formData: FormData) {
-  const id = String(formData.get("id"));
-  const projectId = String(formData.get("projectId"));
-  const name = String(formData.get("name") || "").trim();
-  if (!id || !name) return;
-  await prisma.area.update({ where: { id }, data: { name } });
-  revalidatePath(`/projects/${projectId}`);
 }
 
 export async function archiveArea(formData: FormData) {
   const id = String(formData.get("id"));
   const projectId = String(formData.get("projectId"));
   const archived = formData.get("archived") === "true";
-  await prisma.area.update({ where: { id }, data: { archived } });
+  await api.patchArea(id, { archived });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -89,24 +65,7 @@ export async function reorderArea(formData: FormData) {
   const id = String(formData.get("id"));
   const projectId = String(formData.get("projectId"));
   const direction = String(formData.get("direction"));
-  const area = await prisma.area.findUnique({ where: { id } });
-  if (!area) return;
-  const op = direction === "up" ? "lt" : "gt";
-  const orderDir = direction === "up" ? "desc" : "asc";
-  const neighbour = await prisma.area.findFirst({
-    where: { projectId: area.projectId, displayOrder: { [op]: area.displayOrder } },
-    orderBy: { displayOrder: orderDir },
-  });
-  if (!neighbour) return;
-  await prisma.$transaction([
-    prisma.area.update({
-      where: { id: area.id },
-      data: { displayOrder: neighbour.displayOrder },
-    }),
-    prisma.area.update({
-      where: { id: neighbour.id },
-      data: { displayOrder: area.displayOrder },
-    }),
-  ]);
+  if (direction !== "up" && direction !== "down") return;
+  await api.reorderArea(id, direction as "up" | "down");
   revalidatePath(`/projects/${projectId}`);
 }

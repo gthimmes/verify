@@ -6,7 +6,7 @@ test.describe("Verify — golden paths", () => {
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     const cards = page.getByTestId("project-card");
     await expect(cards).not.toHaveCount(0);
-    await expect(page.locator('[data-project-key="AIW"]')).toBeVisible();
+    await expect(page.locator('[data-project-key="ACM"]')).toBeVisible();
   });
 
   test("create a new project, area, and feature", async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe("Verify — golden paths", () => {
     await dialog.getByTestId("project-name-input").fill(`Smoke Project ${stamp}`);
     await dialog.getByTestId("project-key-input").fill("SMK");
     await dialog.getByTestId("project-submit").click();
-    await expect(page).toHaveURL(/\/projects\/[\w]+$/);
+    await expect(page).toHaveURL(/\/projects\/[\w-]+$/);
     await expect(page.getByText("Smoke Project " + stamp).first()).toBeVisible();
 
     // create an area
@@ -59,8 +59,8 @@ test.describe("Verify — golden paths", () => {
 
   test("authoring a test case persists steps and parameters", async ({ page }) => {
     await page.goto("/");
-    await page.locator('[data-project-key="AIW"]').first().click();
-    await expect(page.getByRole("heading", { name: /Aiwyn Core/ })).toBeVisible();
+    await page.locator('[data-project-key="ACM"]').first().click();
+    await expect(page.getByRole("heading", { name: /Acme Storefront/ })).toBeVisible();
     await page.getByTestId("new-case-cta").click();
 
     await page.getByTestId("case-title").fill("Pay invoice via Apple Pay");
@@ -90,7 +90,7 @@ test.describe("Verify — golden paths", () => {
     await page.getByTestId("case-automation-status").selectOption("not_automated");
 
     await page.getByTestId("case-submit").click();
-    await expect(page).toHaveURL(/\/cases\/[\w]+$/);
+    await expect(page).toHaveURL(/\/cases\/[\w-]+$/);
     await expect(page.getByRole("heading", { name: /Pay invoice via Apple Pay/ })).toBeVisible();
     await expect(page.getByText("Open invoice and click Pay with Apple Pay")).toBeVisible();
   });
@@ -115,7 +115,7 @@ test.describe("Verify — golden paths", () => {
 
   test("reports page surfaces automation candidates", async ({ page }) => {
     await page.goto("/");
-    await page.locator('[data-project-key="AIW"]').first().click();
+    await page.locator('[data-project-key="ACM"]').first().click();
     await page.getByRole("link", { name: "Reports" }).click();
     await expect(
       page.getByRole("heading", { name: /Automation candidates/ }),
@@ -124,9 +124,9 @@ test.describe("Verify — golden paths", () => {
   });
 
   test("global search finds a case by ID", async ({ page }) => {
-    await page.goto("/search?q=AIW-PAY-0001");
+    await page.goto("/search?q=ACM-PAY-0001");
     const results = page.getByTestId("search-result");
     await expect(results.first()).toBeVisible();
-    await expect(results.first()).toContainText("AIW-PAY-0001");
+    await expect(results.first()).toContainText("ACM-PAY-0001");
   });
 });

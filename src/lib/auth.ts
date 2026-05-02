@@ -1,17 +1,9 @@
-import { prisma } from "./prisma";
-
-// v1 stub: a single fixed admin user.  When SSO ships, swap this for a
-// session lookup. Keep the API stable so call sites don't move.
+// v1 stub: identity is owned by the Go backend.  This module exists only
+// for places in the UI that want to print "the current user" without making
+// an API call.  When SSO ships, replace with a session-aware fetch.
 export async function currentUser() {
-  let user = await prisma.user.findFirst({ where: { email: "demo@verify.local" } });
-  if (!user) {
-    user = await prisma.user.create({
-      data: { email: "demo@verify.local", name: "Demo Admin", role: "admin" },
-    });
-  }
-  return user;
+  return { id: "demo", name: "Demo Admin", email: "demo@verify.local", role: "admin" };
 }
-
 export async function requireUser() {
   return currentUser();
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { api } from "@/lib/api";
 import { revalidatePath } from "next/cache";
 
 const FeatureInput = z.object({
@@ -34,36 +34,24 @@ export async function createFeature(
     }
     return { ok: false, message: "Please fix the form.", fieldErrors };
   }
-  const last = await prisma.feature.findFirst({
-    where: { areaId: parsed.data.areaId },
-    orderBy: { displayOrder: "desc" },
-  });
-  await prisma.feature.create({
-    data: {
+  try {
+    await api.createFeature(parsed.data.projectId, {
       areaId: parsed.data.areaId,
       name: parsed.data.name.trim(),
-      description: parsed.data.description?.trim() || null,
-      displayOrder: (last?.displayOrder ?? -1) + 1,
-    },
-  });
+      description: parsed.data.description ?? undefined,
+    });
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
   revalidatePath(`/projects/${parsed.data.projectId}`);
   return { ok: true };
-}
-
-export async function renameFeature(formData: FormData) {
-  const id = String(formData.get("id"));
-  const projectId = String(formData.get("projectId"));
-  const name = String(formData.get("name") || "").trim();
-  if (!id || !name) return;
-  await prisma.feature.update({ where: { id }, data: { name } });
-  revalidatePath(`/projects/${projectId}`);
 }
 
 export async function archiveFeature(formData: FormData) {
   const id = String(formData.get("id"));
   const projectId = String(formData.get("projectId"));
   const archived = formData.get("archived") === "true";
-  await prisma.feature.update({ where: { id }, data: { archived } });
+  await api.patchFeature(id, { archived });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -72,13 +60,6 @@ export async function moveFeature(formData: FormData) {
   const projectId = String(formData.get("projectId"));
   const targetAreaId = String(formData.get("targetAreaId"));
   if (!id || !targetAreaId) return;
-  const last = await prisma.feature.findFirst({
-    where: { areaId: targetAreaId },
-    orderBy: { displayOrder: "desc" },
-  });
-  await prisma.feature.update({
-    where: { id },
-    data: { areaId: targetAreaId, displayOrder: (last?.displayOrder ?? -1) + 1 },
-  });
+  await api.patchFeature(id, { targetAreaId });
   revalidatePath(`/projects/${projectId}`);
 }

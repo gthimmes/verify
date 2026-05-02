@@ -561,7 +561,7 @@ export function TestCaseForm({
                 name="automationRepoUrl"
                 value={automationRepoUrl}
                 onChange={(e) => setAutomationRepoUrl(e.target.value)}
-                placeholder="https://github.com/aiwyn/web-e2e"
+                placeholder="https://github.com/acme/web-e2e"
               />
             </Field>
           </CardBody>

@@ -36,7 +36,7 @@ export function NewProjectButton() {
               required
               minLength={2}
               maxLength={120}
-              placeholder="e.g. Aiwyn Core"
+              placeholder="e.g. Acme Storefront"
               autoFocus
               data-testid="project-name-input"
             />
@@ -51,7 +51,7 @@ export function NewProjectButton() {
               id="key"
               name="key"
               maxLength={8}
-              placeholder="AIW"
+              placeholder="ACM"
               data-testid="project-key-input"
             />
           </Field>

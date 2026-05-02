@@ -57,7 +57,7 @@ Each test case has the following fields:
 
 **Identification**
 
-- Auto-generated, human-readable ID scoped to project (e.g. `AIW-PAY-0042`)
+- Auto-generated, human-readable ID scoped to project (e.g. `ACM-PAY-0042`)
 - Title (required)
 - Feature (required, sets the area implicitly)
 
@@ -112,7 +112,7 @@ Some test cases need to be run against multiple input variations (e.g. "refund a
 - A test case can optionally define a **parameter schema**: a list of named columns (e.g. `payment_method`, `currency`, `expected_fee`).
 - A test case with a parameter schema also defines a **data set**: rows of values, one row per variation.
 - Steps and expected results can reference parameters using `{{column_name}}` placeholders, which render with the row's values during execution.
-- When the case is included in a run, **each data row produces its own execution record**. The tester sees them as `AIW-PAY-0042 [credit card]`, `AIW-PAY-0042 [ACH]`, etc., and records pass/fail per row.
+- When the case is included in a run, **each data row produces its own execution record**. The tester sees them as `ACM-PAY-0042 [credit card]`, `ACM-PAY-0042 [ACH]`, etc., and records pass/fail per row.
 - Reporting rolls up at both levels: per-row results and per-case aggregate (e.g. "passed 3 of 4 rows").
 - Cases without a parameter schema behave as a single execution per run, exactly as in 3.5.
 - Data set rows can be added, edited, and deleted at the case level. Existing run snapshots are not retroactively changed (consistent with run snapshot semantics in 3.4).
@@ -257,7 +257,7 @@ Notes:
 
 - Global search across test cases by ID, title, description, tag, and step content.
 - Saved filters per user (e.g. "my failing cases this sprint", "manual smoke cases in Payments").
-- Quick navigation by ID (`AIW-PAY-0042` jumps directly).
+- Quick navigation by ID (`ACM-PAY-0042` jumps directly).
 - Breadcrumbs and persistent left nav for the project hierarchy.
 
 ### 3.10 Notifications

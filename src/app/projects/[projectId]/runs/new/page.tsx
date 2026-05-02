@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { api } from "@/lib/api";
 import { PageContainer, PageHeader, EmptyState } from "@/components/ui/PageHeader";
 import { NewRunForm } from "@/components/runs/NewRunForm";
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
@@ -13,19 +13,15 @@ export default async function NewRunPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, deletedAt: null },
-  });
-  if (!project) return notFound();
-  const cases = await prisma.testCase.findMany({
-    where: { projectId, deletedAt: null, status: { not: "deprecated" } },
-    include: {
-      feature: { include: { area: true } },
-      tags: { include: { tag: true } },
-      _count: { select: { dataRows: true } },
-    },
-    orderBy: [{ feature: { area: { displayOrder: "asc" } } }, { sequenceNum: "asc" }],
-  });
+  let project, cases;
+  try {
+    [project, cases] = await Promise.all([
+      api.getProject(projectId),
+      api.listCases(projectId, { status: "active", limit: "5000" }),
+    ]);
+  } catch {
+    return notFound();
+  }
 
   return (
     <PageContainer>
@@ -61,11 +57,11 @@ export default async function NewRunPage({
             status: c.status,
             automationStatus: c.automationStatus,
             featureId: c.featureId,
-            featureName: c.feature.name,
-            areaId: c.feature.areaId,
-            areaName: c.feature.area.name,
-            dataRowCount: c._count.dataRows,
-            tags: c.tags.map((t) => t.tag.name),
+            featureName: c.featureName,
+            areaId: c.areaId,
+            areaName: c.areaName,
+            dataRowCount: c.dataRowCount,
+            tags: c.tags,
           }))}
         />
       )}
