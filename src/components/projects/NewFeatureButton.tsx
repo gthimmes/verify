@@ -18,7 +18,7 @@ export function NewFeatureButton({
   areaName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, _action, pending] = useActionState(createFeature, initial);
+  const [state, , pending] = useActionState(createFeature, initial);
 
   return (
     <>

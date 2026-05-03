@@ -1100,12 +1100,13 @@ func snapshotAndQueue(ctx context.Context, tx pgx.Tx, runID, caseID string) erro
 		return err
 	}
 	for _, r := range dataRows {
+		order := asInt(r["order"])
 		label := r["label"]
 		if label == nil {
-			label = fmt.Sprintf("Row %d", int(r["order"].(float64))+1)
+			label = fmt.Sprintf("Row %d", order+1)
 		}
 		_, err := tx.Exec(ctx, `insert into test_executions(run_id,snapshot_case_id,data_row_index,data_row_label,result) values($1,$2,$3,$4,'not_run')`,
-			runID, snapID, int(r["order"].(float64)), label)
+			runID, snapID, order, label)
 		if err != nil {
 			return err
 		}
@@ -1166,6 +1167,26 @@ func queryDataRowsTx(ctx context.Context, tx pgx.Tx, caseID string) ([]map[strin
 		out = append(out, map[string]any{"order": ord, "label": label, "values": values})
 	}
 	return out, rows.Err()
+}
+
+// asInt accepts either int (from in-process snapshots) or float64 (from
+// JSON-decoded payloads) and returns int.  Belt and braces — the same map is
+// produced by tx queries (int) and json.Unmarshal (float64), and the caller
+// can't always tell them apart.
+func asInt(v any) int {
+	switch x := v.(type) {
+	case int:
+		return x
+	case int32:
+		return int(x)
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	case float32:
+		return int(x)
+	}
+	return 0
 }
 
 func parseDate(s string) *time.Time {

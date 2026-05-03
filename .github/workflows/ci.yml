@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Go: vet + test (with Postgres service) ──────────────────────────────
+  go:
+    name: Go (vet + test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: verify
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verify_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verify -d verify_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://verify:verify@localhost:5432/verify_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: backend/go.sum
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+      - name: go test (race + cover, serialized)
+        working-directory: backend
+        run: go test -p 1 -race -coverpkg=./internal/... -coverprofile=coverage.out ./...
+      - name: coverage summary
+        working-directory: backend
+        run: go tool cover -func=coverage.out | tail -25
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: backend/coverage.out
+
+  # ─── Frontend: lint + build ──────────────────────────────────────────────
+  next:
+    name: Next.js (lint + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          VERIFY_API_URL: http://localhost:4000
+
+  # ─── E2E: Playwright against built app + real Go API + Postgres ──────────
+  e2e:
+    name: Playwright (E2E)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: verify
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verify -d verify"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://verify:verify@localhost:5432/verify?sslmode=disable
+      VERIFY_API_URL: http://localhost:4000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: build Go binaries
+        working-directory: backend
+        run: |
+          go build -o ./bin/server ./cmd/server
+          go build -o ./bin/seed ./cmd/seed
+      - name: seed DB
+        working-directory: backend
+        run: ./bin/seed
+      - name: start Go API
+        working-directory: backend
+        run: ./bin/server &
+      - name: wait for API
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "API failed to start" >&2
+          exit 1
+      - name: build Next.js
+        run: npm run build
+      - name: start Next.js
+        run: npm start &
+      - name: wait for UI
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "Next.js failed to start" >&2
+          exit 1
+      - name: run Playwright
+        env:
+          PW_REUSE_SERVER: "1"
+          SKIP_SEED: "1" # already seeded above
+          CI: "1"
+        run: npx playwright test --project=golden-paths
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

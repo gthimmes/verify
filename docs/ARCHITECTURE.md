@@ -103,6 +103,61 @@ src/
 - Mutations all use `pgx.Tx` for multi-write paths to keep races out.
 - The Test Case form ships a meaningful amount of JS because it's interactive (steps reorder, params add/remove, data rows). Still under 50KB gzipped.
 
+## Boundaries and how they're enforced
+
+The architecture relies on a small number of invariants. Convention alone won't keep them true forever — each invariant below has a corresponding automated check that fails when violated, so a regression shows up as a red CI build, not a runtime crash three months later.
+
+| Invariant | Enforced by |
+|---|---|
+| The API is the surface; the store is the implementation. | `internal/architecture/boundaries_test.go::TestRule_apiPackageDoesNotImportPgxOrEmbedSQL` — fails if a handler imports pgx or embeds SQL. |
+| The store doesn't speak HTTP. | Same file, `TestRule_storeDoesNotImportHTTP` — fails if `internal/store` imports `net/http` or chi. |
+| DDL (create/drop/truncate) lives only in `internal/db` (migrations), `cmd/seed`, and `internal/testutil`. | Same file, `TestRule_ddlIsConfinedToMigrationsAndSeed`. |
+| Every user-visible mutation writes to `audit_logs`. | Same file, `TestRule_storeWritesAuditForCoreMutations` — checks store.go names every required `action` constant. |
+| The Postgres schema matches the canonical list. | `internal/db/db_test.go::TestMigrate_appliesEverySchemaTable` — diffs the live schema against `expectedTables`. |
+| Migrations are idempotent. | `internal/db/db_test.go::TestMigrate_isIdempotent`. |
+| Critical partial-unique indexes on `test_executions` exist (the parameterized-execution invariant). | `internal/db/db_test.go::TestMigrate_partialUniqueIndexesPresent`. |
+| The Next.js app never opens a DB connection. | `eslint.config.mjs` — `no-restricted-imports` blocks `pg`, `better-sqlite3`, `@prisma/*` from `src/`. |
+| `src/lib/api.ts` is the only place that calls `fetch()`. | `eslint.config.mjs` — `no-restricted-globals` on every other file in `src/`. |
+| Server Actions are the only mutation entry on the UI side. | Convention + the rule above (no other place can post to the API). |
+
+These tests live next to the code they constrain, run on every push (see `.github/workflows/ci.yml`), and read like documentation when you open them. When the architecture *should* change, change the test first; the rules will then guide the diff.
+
+## Test surface
+
+The full test inventory:
+
+| Layer | Where | What it covers |
+|---|---|---|
+| Migration | `backend/internal/db/db_test.go` | schema shape, idempotency, required indexes |
+| Store integration | `backend/internal/store/*_test.go` | every store method against a real Postgres (`verify_test` DB), including audit-log writes, soft delete + restore, snapshot semantics, attempt history |
+| HTTP handlers | `backend/internal/api/handlers_test.go` | per-route status + body smoke via `httptest` |
+| API contract | `backend/internal/api/contract_test.go` | one full round-trip across every entity (project → area → feature → case → run → execution → report → clone → re-run → soft-delete) — fails first if any field disappears |
+| Architecture rules | `backend/internal/architecture/boundaries_test.go` | structural invariants from the table above |
+| API contract from UI side | `tests/e2e/api-contract.spec.ts` | Playwright hits the Go API directly and asserts every field `src/lib/api.ts` types depend on |
+| E2E golden paths | `tests/e2e/golden-paths.spec.ts` | home → project → cases → run → execute → reports → search |
+| Demo tour (recorded video) | `tests/e2e/demo-tour.spec.ts` | guided walkthrough that produces `docs/media/demo-tour.webm` |
+| Lint | `eslint.config.mjs` + `go vet` | style + boundary rules |
+
+How to run them locally:
+
+```sh
+docker compose up -d postgres            # required for Go tests
+docker exec verify-postgres psql -U verify -d verify -c "create database verify_test;" # one-time
+cd backend && make test                  # go vet + go test -p 1 -race ./...
+cd .. && npm run lint && npm run e2e     # ESLint + Playwright
+
+# Or, the lot:
+npm test
+```
+
+CI runs the same three jobs (Go, Next.js, Playwright) and uploads coverage + traces on failure.
+
+### Why packages run with `-p 1`
+
+`internal/store` and `internal/api` both connect to the `verify_test` database and call `truncate ... cascade` between tests. Go's default behaviour runs *packages* in parallel, which causes those truncates to race. `-p 1` serializes packages while still running tests inside a package serially. The cost is a few seconds; the benefit is a deterministic suite.
+
+If we ever need parallelism, the right move is one schema (or one DB) per package — the Reset helper already centralizes the truncation logic, so the swap would be local.
+
 ## What's intentionally not done in v1
 
 - Real auth (the user is mocked).

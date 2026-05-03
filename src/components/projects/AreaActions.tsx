@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { archiveArea, reorderArea } from "@/app/actions/areas";
-import { Button } from "@/components/ui/Button";
 
 export function AreaActions({
   areaId,

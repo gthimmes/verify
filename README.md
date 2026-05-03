@@ -59,8 +59,37 @@ The seed creates two projects (`Acme Storefront`, `Acme Internal Tools`), 27 tes
 | `npm run db:up` | Bring up Postgres in Docker |
 | `npm run api` | Start the Go API on :4000 |
 | `npm run seed` | Wipe + reseed the database |
+| `npm run lint` | ESLint (incl. architecture boundary rules) |
+| `npm run test:go` | Run the full Go test suite (`-p 1 -race`) |
+| `npm run test:go:cover` | Same with coverage profile |
 | `npm run e2e` | Playwright golden-paths |
 | `npm run e2e:demo` | Record `docs/media/demo-tour.webm` |
+| `npm test` | lint → Go tests → Playwright (the everything button) |
+
+## Tests
+
+The suite is designed so big changes are safe:
+
+- **Migration tests** assert the schema shape and that migrations are idempotent.
+- **Store integration tests** hit a real `verify_test` Postgres and cover every store method, including audit-log writes.
+- **HTTP handler tests** exercise every route with `httptest`.
+- **API contract test** does a full round-trip across every entity — catches field-renames before the UI sees them.
+- **Architecture-boundary tests** enforce the rules in `docs/ARCHITECTURE.md` (handlers don't import pgx, store doesn't import http, only `src/lib/api.ts` calls `fetch`, etc.).
+- **Playwright** runs the golden user paths and the API contract from the UI side. A `globalSetup` re-seeds the DB before every run.
+
+One-time setup:
+```sh
+docker compose up -d postgres
+docker exec verify-postgres psql -U verify -d verify \
+  -c "create database verify_test;"
+```
+
+Then:
+```sh
+npm test
+```
+
+CI runs the same checks on every push — see `.github/workflows/ci.yml`.
 
 ## Where to look in the source
 

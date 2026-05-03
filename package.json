@@ -11,9 +11,13 @@
     "seed": "go -C backend run ./cmd/seed",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
+    "test:go": "go -C backend test -p 1 ./...",
+    "test:go:race": "go -C backend test -p 1 -race ./...",
+    "test:go:cover": "go -C backend test -p 1 -coverpkg=./internal/... -coverprofile=coverage.out ./...",
     "e2e": "playwright test --project=golden-paths",
     "e2e:headed": "playwright test --project=golden-paths --headed",
-    "e2e:demo": "playwright test --project=demo"
+    "e2e:demo": "playwright test --project=demo",
+    "test": "npm run lint && npm run test:go && npm run e2e"
   },
   "dependencies": {
     "clsx": "^2.1.1",
