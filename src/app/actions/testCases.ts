@@ -55,37 +55,50 @@ export type TestCaseFormState = {
   fieldErrors?: Record<string, string>;
 };
 
+function asString(v: FormDataEntryValue | null): string {
+  return v == null ? "" : String(v);
+}
+
 function parse(fd: FormData) {
-  const tagsRaw = String(fd.get("tags") ?? "");
-  const tags = tagsRaw
+  const tags = asString(fd.get("tags"))
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean);
   return {
-    projectId: String(fd.get("projectId") ?? ""),
-    featureId: String(fd.get("featureId") ?? ""),
-    title: String(fd.get("title") ?? ""),
-    description: fd.get("description") ?? "",
-    preconditions: fd.get("preconditions") ?? "",
-    finalExpected: fd.get("finalExpected") ?? "",
-    testDataNotes: fd.get("testDataNotes") ?? "",
-    type: String(fd.get("type") ?? "functional"),
-    priority: String(fd.get("priority") ?? "medium"),
-    status: String(fd.get("status") ?? "active"),
-    automationStatus: String(fd.get("automationStatus") ?? "not_automated"),
-    automationFramework: fd.get("automationFramework") ?? "",
-    automationRef: fd.get("automationRef") ?? "",
-    automationRepoUrl: fd.get("automationRepoUrl") ?? "",
-    jiraKeys: fd.get("jiraKeys") ?? "",
+    projectId: asString(fd.get("projectId")),
+    featureId: asString(fd.get("featureId")),
+    title: asString(fd.get("title")),
+    description: asString(fd.get("description")),
+    preconditions: asString(fd.get("preconditions")),
+    finalExpected: asString(fd.get("finalExpected")),
+    testDataNotes: asString(fd.get("testDataNotes")),
+    type: asString(fd.get("type")) || "functional",
+    priority: asString(fd.get("priority")) || "medium",
+    status: asString(fd.get("status")) || "active",
+    automationStatus: asString(fd.get("automationStatus")) || "not_automated",
+    automationFramework: asString(fd.get("automationFramework")),
+    automationRef: asString(fd.get("automationRef")),
+    automationRepoUrl: asString(fd.get("automationRepoUrl")),
+    jiraKeys: asString(fd.get("jiraKeys")),
     tags,
-    steps: JSON.parse(String(fd.get("stepsJson") ?? "[]")),
-    parameters: JSON.parse(String(fd.get("parametersJson") ?? "[]")),
-    dataRows: JSON.parse(String(fd.get("dataRowsJson") ?? "[]")),
+    steps: JSON.parse(asString(fd.get("stepsJson")) || "[]") as {
+      action: string;
+      expected?: string;
+    }[],
+    parameters: JSON.parse(asString(fd.get("parametersJson")) || "[]") as {
+      name: string;
+    }[],
+    dataRows: JSON.parse(asString(fd.get("dataRowsJson")) || "[]") as Record<
+      string,
+      string
+    >[],
   };
 }
 
-function toApiInput(d: ReturnType<typeof parse>): TestCaseInput {
-  const dataRows = (d.dataRows as Record<string, string>[]).map((row, i) => {
+type ParsedBody = z.infer<typeof Body>;
+
+function toApiInput(d: ParsedBody): TestCaseInput {
+  const dataRows = d.dataRows.map((row, i) => {
     const { __label, ...values } = row;
     return {
       order: i,
@@ -93,30 +106,30 @@ function toApiInput(d: ReturnType<typeof parse>): TestCaseInput {
       values,
     };
   });
-  const steps = (d.steps as { action: string; expected: string }[]).map((s, i) => ({
+  const steps = d.steps.map((s, i) => ({
     order: i,
     action: s.action,
     expected: s.expected ?? "",
   }));
-  const parameters = (d.parameters as { name: string }[]).map((p, i) => ({
+  const parameters = d.parameters.map((p, i) => ({
     name: p.name,
     order: i,
   }));
   return {
     featureId: d.featureId,
-    title: String(d.title).trim(),
-    description: String(d.description ?? ""),
-    preconditions: String(d.preconditions ?? ""),
-    finalExpected: String(d.finalExpected ?? ""),
-    testDataNotes: String(d.testDataNotes ?? ""),
-    type: d.type as string,
-    priority: d.priority as string,
-    status: d.status as string,
-    automationStatus: d.automationStatus as string,
-    automationFramework: String(d.automationFramework ?? ""),
-    automationRef: String(d.automationRef ?? ""),
-    automationRepoUrl: String(d.automationRepoUrl ?? ""),
-    jiraKeys: String(d.jiraKeys ?? ""),
+    title: d.title.trim(),
+    description: d.description ?? "",
+    preconditions: d.preconditions ?? "",
+    finalExpected: d.finalExpected ?? "",
+    testDataNotes: d.testDataNotes ?? "",
+    type: d.type,
+    priority: d.priority,
+    status: d.status,
+    automationStatus: d.automationStatus,
+    automationFramework: d.automationFramework ?? "",
+    automationRef: d.automationRef ?? "",
+    automationRepoUrl: d.automationRepoUrl ?? "",
+    jiraKeys: d.jiraKeys ?? "",
     tags: d.tags,
     steps,
     parameters,

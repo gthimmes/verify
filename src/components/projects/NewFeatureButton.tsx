@@ -41,7 +41,6 @@ export function NewFeatureButton({
           action={async (fd) => {
             const result = await createFeature(state, fd);
             if (result.ok) setOpen(false);
-            return result;
           }}
           className="flex flex-col gap-4"
         >

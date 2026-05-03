@@ -32,7 +32,6 @@ export function NewAreaButton({ projectId }: { projectId: string }) {
           action={async (fd) => {
             const result = await createArea(state, fd);
             if (result.ok) setOpen(false);
-            return result;
           }}
           className="flex flex-col gap-4"
         >
