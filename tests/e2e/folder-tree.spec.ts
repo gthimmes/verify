@@ -12,7 +12,12 @@ import { test, expect } from "@playwright/test";
  */
 
 type Project = { id: string; key: string; testCaseCount: number };
-type FolderNode = { name: string; caseCount: number; children: FolderNode[] };
+type FolderNode = {
+  name: string;
+  ownCount: number;
+  caseCount: number;
+  children: FolderNode[];
+};
 
 const API_URL = process.env.VERIFY_API_URL ?? "http://localhost:4000";
 
@@ -55,10 +60,20 @@ test.describe("Folder tree sidebar", () => {
   test("clicking a folder filters the case list", async ({ page }) => {
     const picked = await pickProjectWithFolders();
     test.skip(!picked, "no project with folders loaded");
-    const top = picked!.topNodes.find((n) => n.caseCount > 0);
-    test.skip(!top, "no folder has cases");
+    // Folder filtering is non-recursive by default, so we need a folder that
+    // *directly* contains cases — not just one whose descendants do.
+    const findWithOwn = (nodes: FolderNode[]): FolderNode | undefined => {
+      for (const n of nodes) {
+        if (n.ownCount > 0) return n;
+        const child = findWithOwn(n.children);
+        if (child) return child;
+      }
+      return undefined;
+    };
+    const target = findWithOwn(picked!.topNodes);
+    test.skip(!target, "no folder has direct cases");
     await page.goto(`/projects/${picked!.project.id}/cases`);
-    await page.locator(`[data-folder-name="${top!.name}"]`).first().click();
+    await page.locator(`[data-folder-name="${target!.name}"]`).first().click();
     await expect(page).toHaveURL(/folder=/);
     await expect(page.getByTestId("case-row").first()).toBeVisible();
   });

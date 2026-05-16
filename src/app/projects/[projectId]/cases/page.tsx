@@ -42,17 +42,48 @@ export default async function CasesListPage({
   } catch {
     return notFound();
   }
-  const cases = await api.listCases(projectId, {
-    archived: sp.archived === "1" ? "1" : undefined,
-    type: sp.type === "all" ? undefined : sp.type,
-    priority: sp.priority === "all" ? undefined : sp.priority,
-    status: sp.status === "all" ? undefined : sp.status,
-    automationStatus: sp.automation === "all" ? undefined : sp.automation,
-    folderId: sp.folder === "all" ? undefined : sp.folder,
-    tag: sp.tag,
-    q: sp.q,
-    limit: "2500",
-  });
+  // The default landing intentionally skips loading every case — for a
+  // project with thousands of cases (Firm Portal: ~2.5k) the React render of
+  // the full table dominates the response time. Once the user picks a folder
+  // or sets any filter, we hit /cases as usual.
+  const folderFilter =
+    sp.folder && sp.folder !== "all" ? sp.folder : undefined;
+  const typeFilter = sp.type && sp.type !== "all" ? sp.type : undefined;
+  const priorityFilter =
+    sp.priority && sp.priority !== "all" ? sp.priority : undefined;
+  const statusFilter =
+    sp.status && sp.status !== "all" ? sp.status : undefined;
+  const automationFilter =
+    sp.automation && sp.automation !== "all" ? sp.automation : undefined;
+  const queryFilter = sp.q && sp.q.trim() !== "" ? sp.q.trim() : undefined;
+  const tagFilter = sp.tag && sp.tag !== "" ? sp.tag : undefined;
+  const hasFilter = Boolean(
+    folderFilter ||
+      typeFilter ||
+      priorityFilter ||
+      statusFilter ||
+      automationFilter ||
+      queryFilter ||
+      tagFilter ||
+      sp.archived === "1",
+  );
+
+  const cases = hasFilter
+    ? await api.listCases(projectId, {
+        archived: sp.archived === "1" ? "1" : undefined,
+        type: typeFilter,
+        priority: priorityFilter,
+        status: statusFilter,
+        automationStatus: automationFilter,
+        folderId: folderFilter,
+        // When filtering by folder, show only its direct cases — the sidebar
+        // numbers reflect this. Descendants stay reachable by drilling in.
+        descendants: folderFilter ? "0" : undefined,
+        tag: tagFilter,
+        q: queryFilter,
+        limit: "2500",
+      })
+    : [];
 
   return (
     <div className="mx-auto flex max-w-[1600px] gap-0">
@@ -74,7 +105,11 @@ export default async function CasesListPage({
               <span>{project.name}</span>
             </span>
           }
-          description={`${cases.length} matching · ${countFolders(folders)} folders.`}
+          description={
+            hasFilter
+              ? `${cases.length} matching · ${countFolders(folders)} folders.`
+              : `${summary?.testCaseCount ?? "?"} test cases · ${countFolders(folders)} folders. Pick a folder to start.`
+          }
           actions={
             <>
               <Link href={`/projects/${projectId}/overview`}>
@@ -134,7 +169,20 @@ export default async function CasesListPage({
           </div>
         </form>
 
-        {cases.length === 0 ? (
+        {!hasFilter ? (
+          <div
+            className="p-10 text-center text-sm text-(--muted)"
+            data-testid="cases-pick-folder"
+          >
+            <p className="text-(--fg)">
+              Pick a folder on the left to view its test cases.
+            </p>
+            <p className="mt-2">
+              Or use the search and filters above to query across all{" "}
+              {summary?.testCaseCount ?? "—"} cases in this project.
+            </p>
+          </div>
+        ) : cases.length === 0 ? (
           <div className="p-10 text-center text-sm text-(--muted)">
             No test cases match your filter.
           </div>

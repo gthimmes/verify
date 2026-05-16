@@ -119,12 +119,25 @@ function FolderRow({
           )}
           data-testid="folder-link"
           data-folder-name={node.name}
+          title={
+            node.caseCount > node.ownCount
+              ? `${node.ownCount} in this folder · ${node.caseCount} including subfolders`
+              : undefined
+          }
         >
           <span className="flex items-center gap-1.5 truncate">
             <FolderIcon />
             <span className="truncate">{node.name}</span>
           </span>
-          <span className="font-mono text-xs text-(--muted)">{node.caseCount}</span>
+          <span className="font-mono text-xs text-(--muted)">
+            {node.ownCount}
+            {node.caseCount > node.ownCount ? (
+              <span className="text-(--muted)/60">
+                {" "}
+                / {node.caseCount}
+              </span>
+            ) : null}
+          </span>
         </Link>
       </div>
       {open && hasChildren ? (

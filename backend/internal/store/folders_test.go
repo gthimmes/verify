@@ -70,12 +70,28 @@ func TestFolderTree_rollsUpCaseCounts(t *testing.T) {
 	if tree[0].CaseCount != 4 {
 		t.Fatalf("Top should roll up to 4 cases, got %d", tree[0].CaseCount)
 	}
+	if tree[0].OwnCount != 1 {
+		t.Fatalf("Top.OwnCount: 1 direct case expected, got %d", tree[0].OwnCount)
+	}
 	mid := tree[0].Children[0]
 	if mid.Name != "Mid" || mid.CaseCount != 3 {
 		t.Fatalf("Mid: name=%s count=%d", mid.Name, mid.CaseCount)
 	}
+	if mid.OwnCount != 0 {
+		t.Fatalf("Mid.OwnCount: 0 direct cases expected, got %d", mid.OwnCount)
+	}
 	if len(mid.Children) != 2 {
 		t.Fatalf("expected 2 leaves, got %d", len(mid.Children))
+	}
+	for _, leaf := range mid.Children {
+		// Each leaf has its own direct cases and no descendants.
+		if leaf.OwnCount != leaf.CaseCount {
+			t.Fatalf("leaf %s: OwnCount=%d CaseCount=%d should match (no children)",
+				leaf.Name, leaf.OwnCount, leaf.CaseCount)
+		}
+		if leaf.OwnCount == 0 {
+			t.Fatalf("leaf %s: expected >0 direct cases", leaf.Name)
+		}
 	}
 }
 

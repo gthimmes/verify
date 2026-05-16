@@ -1043,12 +1043,11 @@ func (s *Store) FolderTree(ctx context.Context, projectID string) ([]*domain.Fol
 	all := []*domain.FolderNode{}
 	for rows.Next() {
 		var n domain.FolderNode
-		var ownCount int
 		if err := rows.Scan(&n.ID, &n.ProjectID, &n.ParentID, &n.Name, &n.Description,
-			&n.DisplayOrder, &n.Archived, &n.CreatedAt, &n.UpdatedAt, &ownCount); err != nil {
+			&n.DisplayOrder, &n.Archived, &n.CreatedAt, &n.UpdatedAt, &n.OwnCount); err != nil {
 			return nil, err
 		}
-		n.CaseCount = ownCount
+		n.CaseCount = n.OwnCount
 		n.Children = []*domain.FolderNode{}
 		all = append(all, &n)
 	}

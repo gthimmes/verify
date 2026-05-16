@@ -93,10 +93,13 @@ type Folder struct {
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
-// FolderNode is the tree-shaped form returned by /folders.  CaseCount is the
-// total cases under this folder *including descendants*.
+// FolderNode is the tree-shaped form returned by /folders.
+//   - OwnCount   = cases directly in this folder (matches what the table
+//                  shows when the user clicks the folder)
+//   - CaseCount  = OwnCount + every descendant's OwnCount, rolled up
 type FolderNode struct {
 	Folder
+	OwnCount  int           `json:"ownCount"`
 	CaseCount int           `json:"caseCount"`
 	Children  []*FolderNode `json:"children"`
 }

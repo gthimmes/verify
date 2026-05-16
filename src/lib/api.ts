@@ -94,6 +94,7 @@ export type FolderNode = {
   description: string | null;
   displayOrder: number;
   archived: boolean;
+  ownCount: number;
   caseCount: number;
   children: FolderNode[];
 };
