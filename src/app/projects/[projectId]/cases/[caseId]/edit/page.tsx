@@ -27,7 +27,7 @@ export default async function EditCasePage({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { label: "Projects", href: "/" },
+          { label: "Projects", href: "/?list=1" },
           { label: project.name, href: `/projects/${projectId}` },
           { label: tc.publicId, href: `/projects/${projectId}/cases/${caseId}` },
           { label: "Edit" },

@@ -17,8 +17,9 @@ The Go service owns all data and validation. The Next.js app is a thin BFF: serv
 
 ## What's in v1
 
-- Projects → Areas → Features → Test Cases hierarchy with auto-generated public IDs (`ACM-PAY-0042`).
+- **Projects → Folders → Test Cases** hierarchy. Folders are a recursive tree of arbitrary depth (rendered as a Testiny-style sidebar with rolled-up case counts).
 - Full test-case authoring: steps, preconditions, classification, **automation metadata**, parameterized data sets, tags, Jira links, change history.
+- **Testiny .xlsx importer** that preserves the full folder structure of an export (`backend/cmd/import-testiny`).
 - Test runs as **frozen snapshots** of selected cases at a moment in time. Re-run failed subsets. Clone runs. Track environment, build, milestone.
 - Test execution UI with quick pass/fail/blocked/skipped, comments, defect linking, attempt history, full step rendering with `{{parameter}}` interpolation.
 - Reports: automation candidates (ranked), coverage by area, top-failing, stale automation metadata, stale manual cases.
@@ -38,18 +39,22 @@ The Go service owns all data and validation. The Next.js app is a thin BFF: serv
 # 1. Postgres
 docker compose up -d postgres
 
-# 2. Go API + migrations + seed
+# 2. Go API + migrations
 cd backend
-go run ./cmd/seed     # also runs migrations
-go run ./cmd/server   # listens on :4000
+go run ./cmd/server           # auto-applies migrations, listens on :4000
 
-# 3. Next.js (in another shell)
+# 3. (optional) seed demo data — idempotent, only runs if demos are missing
+go run ./cmd/seed             # creates Acme Storefront + Acme Internal Tools
+
+# 4. (optional) import a Testiny .xlsx export
+go run ./cmd/import-testiny --xlsx /path/to/export.xlsx \
+    --project-key DEMO --create-project --project-name "Demo Project" --apply
+
+# 5. Next.js (in another shell)
 cd ..
 npm install
-npm run dev           # http://localhost:3000
+npm run dev                   # http://localhost:3000
 ```
-
-The seed creates two projects (`Acme Storefront`, `Acme Internal Tools`), 27 test cases (some parameterized), and four runs (one completed, one in progress, one draft, one for the internal project). Open the home page and click around — every link should work and tell a story.
 
 ## npm scripts
 
@@ -58,13 +63,38 @@ The seed creates two projects (`Acme Storefront`, `Acme Internal Tools`), 27 tes
 | `npm run dev` | Start Next.js on :3000 |
 | `npm run db:up` | Bring up Postgres in Docker |
 | `npm run api` | Start the Go API on :4000 |
-| `npm run seed` | Wipe + reseed the database |
+| `npm run seed` | Idempotently create the demo projects (no-op if present) |
 | `npm run lint` | ESLint (incl. architecture boundary rules) |
-| `npm run test:go` | Run the full Go test suite (`-p 1 -race`) |
+| `npm run test:go` | Run the full Go test suite (`-p 1`) |
+| `npm run test:go:race` | Same with the data-race detector (needs CGO) |
 | `npm run test:go:cover` | Same with coverage profile |
 | `npm run e2e` | Playwright golden-paths |
 | `npm run e2e:demo` | Record `docs/media/demo-tour.webm` |
-| `npm test` | lint → Go tests → Playwright (the everything button) |
+| `npm test` | lint → Go → Playwright (the everything button) |
+
+## Seed safety
+
+The seed CLI defaults to **idempotent, non-destructive** mode. Running it against a database that already has the demo projects is a no-op:
+
+```sh
+go run ./cmd/seed              # default: no-op if demos exist
+go run ./cmd/seed --wipe       # delete + re-create Acme/Internal only
+go run ./cmd/seed --wipe-all   # DANGEROUS: truncate every table (test DB only)
+```
+
+The Playwright `globalSetup.ts` does **not** run the seed by default. Set `PW_RESEED=1`, `PW_RESEED=wipe`, or `PW_RESEED=wipe-all` to opt in.
+
+## Importer
+
+`backend/cmd/import-testiny` ingests a Testiny `.xlsx` export and creates a faithful folder tree, one folder per `>`-separated path segment. It maps Testiny's type/priority/status onto Verify's enums (full mapping in `internal/importer/mappers.go`). Default mode is dry-run; pass `--apply` to write.
+
+```sh
+go run ./cmd/import-testiny --xlsx export.xlsx --project-key X
+go run ./cmd/import-testiny --xlsx export.xlsx --project-key X --apply
+go run ./cmd/import-testiny --xlsx export.xlsx --project-key X --create-project --project-name "New project" --apply
+```
+
+A synthetic xlsx fixture at `backend/internal/importer/testdata/fixture.xlsx` exercises every parser branch and is the basis for the importer + folder-tree tests.
 
 ## Tests
 
@@ -74,8 +104,9 @@ The suite is designed so big changes are safe:
 - **Store integration tests** hit a real `verify_test` Postgres and cover every store method, including audit-log writes.
 - **HTTP handler tests** exercise every route with `httptest`.
 - **API contract test** does a full round-trip across every entity — catches field-renames before the UI sees them.
+- **Importer tests** cover the folder parser, type/priority mappers, step parser, end-to-end driver against the fixture xlsx.
 - **Architecture-boundary tests** enforce the rules in `docs/ARCHITECTURE.md` (handlers don't import pgx, store doesn't import http, only `src/lib/api.ts` calls `fetch`, etc.).
-- **Playwright** runs the golden user paths and the API contract from the UI side. A `globalSetup` re-seeds the DB before every run.
+- **Playwright** runs golden user paths + the importer flow + the folder tree sidebar.
 
 One-time setup:
 ```sh
@@ -93,14 +124,15 @@ CI runs the same checks on every push — see `.github/workflows/ci.yml`.
 
 ## Where to look in the source
 
-- `backend/internal/db/migrations/0001_init.sql` — full schema (Postgres dialect)
+- `backend/internal/db/migrations/` — schema (Postgres dialect)
 - `backend/internal/store/store.go` — every SQL query
 - `backend/internal/api/router.go` — REST surface
-- `backend/cmd/seed/main.go` — demo seeder
+- `backend/internal/importer/` — Testiny xlsx importer (parsers, driver, fixture)
+- `backend/cmd/import-testiny/main.go` — importer CLI
+- `backend/cmd/seed/main.go` — demo seed CLI (idempotent by default)
 - `src/lib/api.ts` — typed client used by every Next.js page
+- `src/components/projects/FolderTree.tsx` — Testiny-style folder sidebar
 - `src/app/projects/[projectId]/` — per-project routes
-- `src/components/runs/ExecutionRow.tsx` — the test-execution unit
-- `src/components/testcases/TestCaseForm.tsx` — the test-case authoring form
 - `docs/spec.md` — the product spec this implementation traces to
 - `docs/ARCHITECTURE.md` — how the system fits together
 - `docs/ROADMAP.md` — what's next, including AI features
@@ -114,7 +146,7 @@ The user asked for an AI-driven application but explicitly without AI features f
 - Steps and expected results are first-class fields, not blobs of markdown — generators and graders can target them.
 - Automation candidates use a deterministic score; replacing it with a model is a one-line swap in `backend/internal/store/store.go`.
 - The execution model carries comments + linked defects, which are the natural input to a failure-clustering pipeline.
-- Search is URL-driven (`q`, `tag`, `priority`...) so a `nl=` query can be parsed by an LLM into structured filters.
+- Search is URL-driven (`q`, `tag`, `priority`, `folder`...) so a `nl=` query can be parsed by an LLM into structured filters.
 - Every mutation goes through one of two typed paths (Go HTTP handler or Next.js Server Action), so model-driven actions get the same validation path.
 
 The full plan lives in [`docs/AGENTS_AI_DESIGN.md`](docs/AGENTS_AI_DESIGN.md).

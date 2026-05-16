@@ -38,7 +38,7 @@ export default function RootLayout({
             </Link>
             <nav className="flex items-center gap-1 text-sm">
               <Link
-                href="/"
+                href="/?list=1"
                 className="px-3 py-1.5 rounded-md text-(--muted) hover:bg-(--accent-soft) hover:text-(--accent)"
               >
                 Projects

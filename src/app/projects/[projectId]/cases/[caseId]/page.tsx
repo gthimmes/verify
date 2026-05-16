@@ -32,7 +32,7 @@ export default async function CaseDetailPage({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { label: "Projects", href: "/" },
+          { label: "Projects", href: "/?list=1" },
           { label: tc.projectName, href: `/projects/${projectId}` },
           { label: "Cases", href: `/projects/${projectId}/cases` },
           { label: tc.publicId },

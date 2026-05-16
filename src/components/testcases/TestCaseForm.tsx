@@ -476,6 +476,9 @@ export function TestCaseForm({
                 <option value="performance">Performance</option>
                 <option value="security">Security</option>
                 <option value="accessibility">Accessibility</option>
+                <option value="acceptance">Acceptance</option>
+                <option value="compatibility">Compatibility</option>
+                <option value="other">Other</option>
               </Select>
             </Field>
             <Field label="Priority" htmlFor="priority">

@@ -23,7 +23,9 @@ async function openDialog(page: Page, trigger: Locator): Promise<Locator> {
 
 test.describe("Verify — golden paths", () => {
   test("home page lists seeded projects", async ({ page }) => {
-    await page.goto("/");
+    // `/` now redirects to the most-recently-updated project; the project
+    // list lives at `/?list=1` (header nav + breadcrumbs use this).
+    await page.goto("/?list=1");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     const cards = page.getByTestId("project-card");
     await expect(cards).not.toHaveCount(0);
@@ -32,7 +34,7 @@ test.describe("Verify — golden paths", () => {
 
   test("create a new project, area, and feature", async ({ page }) => {
     const stamp = Date.now();
-    await page.goto("/");
+    await page.goto("/?list=1");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
     const dialog = await openDialog(page, page.getByTestId("new-project-button").first());
@@ -40,16 +42,24 @@ test.describe("Verify — golden paths", () => {
     await dialog.getByTestId("project-key-input").fill(`SMK${stamp.toString().slice(-4)}`);
     await dialog.getByTestId("project-submit").click();
 
-    await expect(page).toHaveURL(/\/projects\/[\w-]+$/);
+    // After create, the server action redirects to /projects/{id}, which in
+    // turn redirects to the folder view at /projects/{id}/cases.
+    await expect(page).toHaveURL(/\/projects\/[\w-]+\/cases$/);
     await expect(page.getByText("Smoke Project " + stamp).first()).toBeVisible();
 
-    // area
+    // Area + feature creation lives on the project overview page.
+    const projectUrl = new URL(page.url());
+    const overviewPath = projectUrl.pathname.replace(/\/cases$/, "/overview");
+    await page.goto(overviewPath);
+    await expect(
+      page.getByRole("heading", { name: new RegExp(`Smoke Project ${stamp}`) }),
+    ).toBeVisible();
+
     const areaDialog = await openDialog(page, page.getByTestId("new-area-button").first());
     await areaDialog.getByTestId("area-name-input").fill("Checkout");
     await areaDialog.getByTestId("area-submit").click();
     await expect(page.getByText("Checkout").first()).toBeVisible();
 
-    // feature
     const featureDialog = await openDialog(page, page.getByTestId("new-feature-button").first());
     await featureDialog.getByTestId("feature-name-input").fill("Cart");
     await featureDialog.getByTestId("feature-submit").click();
@@ -57,7 +67,9 @@ test.describe("Verify — golden paths", () => {
   });
 
   test("authoring a test case persists steps and parameters", async ({ page }) => {
-    await page.goto("/");
+    // Go to the list explicitly so the test doesn't depend on whichever
+    // project was most-recently-updated by other tests in this run.
+    await page.goto("/?list=1");
     await page.locator('[data-project-key="ACM"]').first().click();
     await expect(page.getByRole("heading", { name: /Acme Storefront/ })).toBeVisible();
     await page.getByTestId("new-case-cta").click();
@@ -105,7 +117,7 @@ test.describe("Verify — golden paths", () => {
   });
 
   test("reports page surfaces automation candidates", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?list=1");
     await page.locator('[data-project-key="ACM"]').first().click();
     await page.getByRole("link", { name: "Reports" }).click();
     await expect(page.getByRole("heading", { name: /Automation candidates/ })).toBeVisible();

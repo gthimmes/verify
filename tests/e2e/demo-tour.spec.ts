@@ -15,7 +15,7 @@ async function pause(page: import("@playwright/test").Page, ms = SLOW) {
 test("demo tour", async ({ page }) => {
   test.setTimeout(180_000);
 
-  await page.goto("/");
+  await page.goto("/?list=1");
   await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   await pause(page, 1500);
 
@@ -24,10 +24,12 @@ test("demo tour", async ({ page }) => {
   await pause(page);
 
   await page.locator('[data-project-key="ACM"]').first().click();
+  // Clicking a project card lands on the folder view (cases page) — the
+  // project name + key badge is the page title here.
   await expect(page.getByRole("heading", { name: /Acme Storefront/ })).toBeVisible();
   await pause(page, 1500);
 
-  // tour the hierarchy
+  // tour the folder tree + case list
   await page.mouse.wheel(0, 350);
   await pause(page);
   await page.mouse.wheel(0, 250);
@@ -44,7 +46,7 @@ test("demo tour", async ({ page }) => {
   await page.mouse.wheel(0, -400);
   await pause(page);
 
-  // jump to all cases
+  // back to the project cases view via the breadcrumb
   await page.getByRole("link", { name: "Cases" }).first().click();
   await expect(page.getByTestId("cases-table")).toBeVisible();
   await pause(page, 1500);
@@ -70,12 +72,12 @@ test("demo tour", async ({ page }) => {
   await pause(page);
   await page.mouse.wheel(0, -1000);
 
-  // back to project, into runs
+  // back to project, into runs (project link redirects to /cases)
   await page
     .getByRole("link", { name: /Acme Storefront/ })
     .first()
     .click();
-  await page.waitForURL(/\/projects\/[\w-]+$/);
+  await page.waitForURL(/\/projects\/[\w-]+\/cases$/);
   await pause(page, 600);
   await page.locator('a[href*="/projects/"][href$="/runs"]').first().click();
   await page.waitForURL(/\/projects\/[\w-]+\/runs$/);

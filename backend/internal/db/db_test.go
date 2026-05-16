@@ -16,6 +16,7 @@ var expectedTables = []string{
 	"audit_logs",
 	"execution_attempts",
 	"features",
+	"folders",
 	"project_members",
 	"projects",
 	"run_snapshot_cases",

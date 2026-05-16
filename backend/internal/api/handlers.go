@@ -141,6 +141,15 @@ func (s *Server) reorderArea(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
+func (s *Server) listFolders(w http.ResponseWriter, r *http.Request) {
+	tree, err := s.Store.FolderTree(r.Context(), chi.URLParam(r, "projectId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, tree)
+}
+
 func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {
 	features, err := s.Store.ListFeatures(r.Context(), chi.URLParam(r, "projectId"))
 	if err != nil {
@@ -197,17 +206,19 @@ func (s *Server) listCases(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	cases, err := s.Store.ListTestCases(r.Context(), store.CaseListFilter{
-		ProjectID:        chi.URLParam(r, "projectId"),
-		IncludeDeleted:   q.Get("archived") == "1",
-		Type:             q.Get("type"),
-		Priority:         q.Get("priority"),
-		Status:           q.Get("status"),
-		AutomationStatus: q.Get("automationStatus"),
-		FeatureID:        q.Get("featureId"),
-		AreaID:           q.Get("areaId"),
-		Tag:              q.Get("tag"),
-		Q:                q.Get("q"),
-		Limit:            limit,
+		ProjectID:          chi.URLParam(r, "projectId"),
+		IncludeDeleted:     q.Get("archived") == "1",
+		Type:               q.Get("type"),
+		Priority:           q.Get("priority"),
+		Status:             q.Get("status"),
+		AutomationStatus:   q.Get("automationStatus"),
+		FeatureID:          q.Get("featureId"),
+		AreaID:             q.Get("areaId"),
+		FolderID:           q.Get("folderId"),
+		IncludeDescendants: q.Get("descendants") != "0", // default ON for tree filter
+		Tag:                q.Get("tag"),
+		Q:                  q.Get("q"),
+		Limit:              limit,
 	})
 	if err != nil {
 		writeErr(w, err)

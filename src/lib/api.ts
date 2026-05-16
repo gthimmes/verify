@@ -86,6 +86,18 @@ export type Feature = {
 
 export type AreaWithFeatures = Area & { features: Feature[] };
 
+export type FolderNode = {
+  id: ID;
+  projectId: ID;
+  parentId: ID | null;
+  name: string;
+  description: string | null;
+  displayOrder: number;
+  archived: boolean;
+  caseCount: number;
+  children: FolderNode[];
+};
+
 export type TestStep = { id?: string; order: number; action: string; expected: string };
 export type TestCaseParam = { name: string; order: number };
 export type TestCaseDataRow = { order: number; label: string | null; values: Record<string, string> };
@@ -280,6 +292,8 @@ export const api = {
   // hierarchy / areas / features
   hierarchy: (projectId: ID) =>
     request<AreaWithFeatures[]>(`/projects/${projectId}/hierarchy`),
+  folders: (projectId: ID) =>
+    request<FolderNode[]>(`/projects/${projectId}/folders`),
   listAreas: (projectId: ID) => request<Area[]>(`/projects/${projectId}/areas`),
   listFeatures: (projectId: ID) => request<Feature[]>(`/projects/${projectId}/features`),
   createArea: (projectId: ID, input: { name: string; key?: string; description?: string }) =>
@@ -302,6 +316,10 @@ export const api = {
     const tail = qs.toString();
     return request<TestCaseLite[]>(`/projects/${projectId}/cases${tail ? `?${tail}` : ""}`);
   },
+  listCasesByFolder: (projectId: ID, folderId: string) =>
+    request<TestCaseLite[]>(
+      `/projects/${projectId}/cases?folderId=${encodeURIComponent(folderId)}&limit=2500`,
+    ),
   getCase: (id: ID) => request<TestCase>(`/cases/${id}`),
   createCase: (projectId: ID, input: TestCaseInput) =>
     request<TestCase>(`/projects/${projectId}/cases`, { method: "POST", body: JSON.stringify(input) }),

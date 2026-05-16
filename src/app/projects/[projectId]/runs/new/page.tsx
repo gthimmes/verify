@@ -27,7 +27,7 @@ export default async function NewRunPage({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { label: "Projects", href: "/" },
+          { label: "Projects", href: "/?list=1" },
           { label: project.name, href: `/projects/${projectId}` },
           { label: "Runs", href: `/projects/${projectId}/runs` },
           { label: "New" },

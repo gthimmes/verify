@@ -2,13 +2,21 @@
  * Playwright globalSetup — runs once before any test starts.
  *
  * Responsibilities:
- *   1. Verify the Go API is reachable (the playwright.config.ts webServer
- *      starts Next.js, but the Go API has to already be running).
- *   2. Run the Go seed binary to put the database in a known state.
+ *   1. Verify the Go API is reachable.  The Playwright config also starts
+ *      Next.js via `webServer`, but the Go service must already be up.
+ *   2. Optionally ensure the Acme/Internal demo projects exist so the
+ *      golden-paths specs have a fixture to read.  Controlled by env:
  *
- * All E2E tests assume the seed shape (the `Acme Storefront` project, the
- * `ACM-PAY-0001` case, the `May 1 nightly smoke` run, etc.).  Keeping this
- * idempotent is the cheap way to make the suite re-runnable.
+ *        PW_RESEED=1            ensure demos via the (non-destructive) seed
+ *        PW_RESEED=wipe         delete the demo projects and re-seed
+ *        PW_RESEED=wipe-all     truncate every table and re-seed (test DB)
+ *
+ *      Default: do nothing.  Tests that need the demo projects either
+ *      already have them (you've run the seed manually once), or skip
+ *      themselves when the data is missing.
+ *
+ *      Imported user data (e.g. an FP project from the Testiny importer)
+ *      is **never** touched unless PW_RESEED=wipe-all is explicitly set.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -18,12 +26,11 @@ const API_URL = process.env.VERIFY_API_URL ?? "http://localhost:4000";
 
 export default async function globalSetup() {
   await waitForApi();
-  await runSeed();
+  await maybeSeed();
 }
 
 async function waitForApi() {
   const start = Date.now();
-  // Up to 30s — most of the time the API is already up.
   while (Date.now() - start < 30_000) {
     try {
       const res = await fetch(`${API_URL}/health`);
@@ -38,21 +45,21 @@ async function waitForApi() {
   );
 }
 
-async function runSeed() {
+async function maybeSeed() {
+  const mode = process.env.PW_RESEED ?? "";
+  if (!mode) {
+    console.log(
+      "[globalSetup] PW_RESEED not set — leaving DB as-is (tests that need demo data may skip)",
+    );
+    return;
+  }
   const backend = join(process.cwd(), "backend");
   if (!existsSync(join(backend, "go.mod"))) {
     throw new Error(`Cannot find backend at ${backend}`);
   }
-  // Allow tests to opt out (e.g., locally if you're iterating on UI and
-  // already seeded).  Skipping the seed will leak state from prior runs, so
-  // you only want this when you know what you're doing.
-  if (process.env.SKIP_SEED === "1") {
-    console.log("[globalSetup] SKIP_SEED=1 — leaving DB as-is");
-    return;
-  }
-  console.log("[globalSetup] reseeding test DB via go run ./cmd/seed");
-  execFileSync("go", ["run", "./cmd/seed"], {
-    cwd: backend,
-    stdio: "inherit",
-  });
+  const args = ["run", "./cmd/seed"];
+  if (mode === "wipe") args.push("--wipe");
+  if (mode === "wipe-all") args.push("--wipe-all");
+  console.log(`[globalSetup] running seed: PW_RESEED=${mode}`);
+  execFileSync("go", args, { cwd: backend, stdio: "inherit" });
 }

@@ -62,6 +62,7 @@ func Reset(t *testing.T, pool *pgxpool.Pool) {
 		"test_steps",
 		"test_case_tags",
 		"test_cases",
+		"folders",
 		"features",
 		"areas",
 		"project_members",
