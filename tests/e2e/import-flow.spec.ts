@@ -68,6 +68,10 @@ test("imported test cases render with steps and metadata", async ({ page }) => {
   await page.goto("/?list=1");
   await page.locator(`[data-project-key="${PROJECT_KEY}"]`).first().click();
 
+  // Folder filtering is non-recursive: the case lives directly in
+  // "Demo Project > Module A", so we drill into Module A.
+  await page.locator('[data-folder-name="Module A"]').first().click();
+
   const row = page.getByText("Open module landing page").first();
   await expect(row).toBeVisible();
   await row.click();
@@ -95,6 +99,11 @@ test("multi-scenario case becomes one step per [N] block", async ({ page }) => {
 test("deprecated case lands under DEPRECATED folder", async ({ page }) => {
   await page.goto("/?list=1");
   await page.locator(`[data-project-key="${PROJECT_KEY}"]`).first().click();
-  await page.locator('[data-folder-name="DEPRECATED"]').first().click();
+  // The deprecated case lives at "DEPRECATED > Old Module" — non-recursive
+  // filtering means we drill into the leaf, not the DEPRECATED root.
+  await expect(
+    page.locator('[data-folder-name="DEPRECATED"]').first(),
+  ).toBeVisible();
+  await page.locator('[data-folder-name="Old Module"]').first().click();
   await expect(page.getByText("[DEPRECATED] Old test").first()).toBeVisible();
 });

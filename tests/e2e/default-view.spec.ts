@@ -108,19 +108,22 @@ test.describe("Default view — folder view is the landing", () => {
     const id = projects[0].id;
     await page.goto(`/projects/${id}/cases`);
 
-    // Verify each action is a real, navigable link with the right href.
-    const overview = page.getByRole("link", { name: "Overview" });
+    // Scope to <main> — the global header has an "Active runs" link that
+    // would otherwise collide with the page's own "Runs" link.
+    const main = page.getByRole("main");
+
+    const overview = main.getByRole("link", { name: "Overview", exact: true });
     await expect(overview).toBeVisible();
     await expect(overview).toHaveAttribute(
       "href",
       `/projects/${id}/overview`,
     );
 
-    const runs = page.getByRole("link", { name: "Runs" });
+    const runs = main.getByRole("link", { name: "Runs", exact: true });
     await expect(runs).toBeVisible();
     await expect(runs).toHaveAttribute("href", `/projects/${id}/runs`);
 
-    const reports = page.getByRole("link", { name: "Reports" });
+    const reports = main.getByRole("link", { name: "Reports", exact: true });
     await expect(reports).toBeVisible();
     await expect(reports).toHaveAttribute("href", `/projects/${id}/reports`);
 
