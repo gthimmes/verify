@@ -79,6 +79,38 @@ type CreateFeatureInput struct {
 	Description string `json:"description"`
 }
 
+// Folder is one node of the recursive folder tree.  Test cases belong to a
+// folder; folders belong to a project and (optionally) a parent folder.
+type Folder struct {
+	ID           string    `json:"id"`
+	ProjectID    string    `json:"projectId"`
+	ParentID     *string   `json:"parentId"`
+	Name         string    `json:"name"`
+	Description  *string   `json:"description"`
+	DisplayOrder int       `json:"displayOrder"`
+	Archived     bool      `json:"archived"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// FolderNode is the tree-shaped form returned by /folders.
+//   - OwnCount   = cases directly in this folder (matches what the table
+//                  shows when the user clicks the folder)
+//   - CaseCount  = OwnCount + every descendant's OwnCount, rolled up
+type FolderNode struct {
+	Folder
+	OwnCount  int           `json:"ownCount"`
+	CaseCount int           `json:"caseCount"`
+	Children  []*FolderNode `json:"children"`
+}
+
+type CreateFolderInput struct {
+	ProjectID   string  `json:"projectId"`
+	ParentID    *string `json:"parentId"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+}
+
 // TestStep / Param / DataRow
 type TestStep struct {
 	ID       string `json:"id"`
@@ -139,6 +171,7 @@ type TestCase struct {
 type TestCaseInput struct {
 	ProjectID           string            `json:"projectId"`
 	FeatureID           string            `json:"featureId"`
+	FolderID            *string           `json:"folderId,omitempty"`
 	Title               string            `json:"title"`
 	Description         string            `json:"description"`
 	Preconditions       string            `json:"preconditions"`

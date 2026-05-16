@@ -70,6 +70,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/projects/{projectId}/areas", s.createArea)
 		r.Patch("/areas/{areaId}", s.patchArea)
 		r.Post("/areas/{areaId}/reorder", s.reorderArea)
+		r.Get("/projects/{projectId}/folders", s.listFolders)
 		r.Get("/projects/{projectId}/features", s.listFeatures)
 		r.Post("/projects/{projectId}/features", s.createFeature)
 		r.Patch("/features/{featureId}", s.patchFeature)

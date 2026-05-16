@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { Input, Select } from "@/components/ui/Input";
+import { FolderTree } from "@/components/projects/FolderTree";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ type SP = {
   tag?: string;
   feature?: string;
   area?: string;
+  folder?: string;
   archived?: string;
 };
 
@@ -30,45 +32,101 @@ export default async function CasesListPage({
 }) {
   const { projectId } = await params;
   const sp = await searchParams;
-  let project, areas, features;
+  let project, folders, summary;
   try {
-    [project, areas, features] = await Promise.all([
+    [project, folders, summary] = await Promise.all([
       api.getProject(projectId),
-      api.listAreas(projectId),
-      api.listFeatures(projectId),
+      api.folders(projectId),
+      api.listProjects(false).then((all) => all.find((p) => p.id === projectId)),
     ]);
   } catch {
     return notFound();
   }
-  const cases = await api.listCases(projectId, {
-    archived: sp.archived === "1" ? "1" : undefined,
-    type: sp.type === "all" ? undefined : sp.type,
-    priority: sp.priority === "all" ? undefined : sp.priority,
-    status: sp.status === "all" ? undefined : sp.status,
-    automationStatus: sp.automation === "all" ? undefined : sp.automation,
-    featureId: sp.feature === "all" ? undefined : sp.feature,
-    areaId: sp.area === "all" ? undefined : sp.area,
-    tag: sp.tag,
-    q: sp.q,
-    limit: "200",
-  });
+  // The default landing intentionally skips loading every case — for a
+  // project with thousands of cases (Firm Portal: ~2.5k) the React render of
+  // the full table dominates the response time. Once the user picks a folder
+  // or sets any filter, we hit /cases as usual.
+  const folderFilter =
+    sp.folder && sp.folder !== "all" ? sp.folder : undefined;
+  const typeFilter = sp.type && sp.type !== "all" ? sp.type : undefined;
+  const priorityFilter =
+    sp.priority && sp.priority !== "all" ? sp.priority : undefined;
+  const statusFilter =
+    sp.status && sp.status !== "all" ? sp.status : undefined;
+  const automationFilter =
+    sp.automation && sp.automation !== "all" ? sp.automation : undefined;
+  const queryFilter = sp.q && sp.q.trim() !== "" ? sp.q.trim() : undefined;
+  const tagFilter = sp.tag && sp.tag !== "" ? sp.tag : undefined;
+  const hasFilter = Boolean(
+    folderFilter ||
+      typeFilter ||
+      priorityFilter ||
+      statusFilter ||
+      automationFilter ||
+      queryFilter ||
+      tagFilter ||
+      sp.archived === "1",
+  );
+
+  const cases = hasFilter
+    ? await api.listCases(projectId, {
+        archived: sp.archived === "1" ? "1" : undefined,
+        type: typeFilter,
+        priority: priorityFilter,
+        status: statusFilter,
+        automationStatus: automationFilter,
+        folderId: folderFilter,
+        // When filtering by folder, show only its direct cases — the sidebar
+        // numbers reflect this. Descendants stay reachable by drilling in.
+        descendants: folderFilter ? "0" : undefined,
+        tag: tagFilter,
+        q: queryFilter,
+        limit: "2500",
+      })
+    : [];
 
   return (
-    <PageContainer>
-      <PageHeader
-        breadcrumbs={[
-          { label: "Projects", href: "/" },
-          { label: project.name, href: `/projects/${projectId}` },
-          { label: "Test cases" },
-        ]}
-        title="Test cases"
-        description={`${cases.length} matching · across ${areas.length} areas, ${features.length} features.`}
-        actions={
-          <Link href={`/projects/${projectId}/cases/new`}>
-            <Button>+ New test case</Button>
-          </Link>
-        }
+    <div className="mx-auto flex max-w-[1600px] gap-0">
+      <FolderTree
+        total={summary?.testCaseCount ?? cases.length}
+        roots={folders}
+        selectedFolderId={sp.folder ?? null}
+        basePath={`/projects/${projectId}/cases`}
       />
+      <PageContainer className="flex-1">
+        <PageHeader
+          breadcrumbs={[
+            { label: "Projects", href: "/?list=1" },
+            { label: project.name },
+          ]}
+          title={
+            <span className="flex items-center gap-2">
+              <Badge tone="default">{project.key}</Badge>
+              <span>{project.name}</span>
+            </span>
+          }
+          description={
+            hasFilter
+              ? `${cases.length} matching · ${countFolders(folders)} folders.`
+              : `${summary?.testCaseCount ?? "?"} test cases · ${countFolders(folders)} folders. Pick a folder to start.`
+          }
+          actions={
+            <>
+              <Link href={`/projects/${projectId}/overview`}>
+                <Button variant="outline">Overview</Button>
+              </Link>
+              <Link href={`/projects/${projectId}/runs`}>
+                <Button variant="outline">Runs</Button>
+              </Link>
+              <Link href={`/projects/${projectId}/reports`}>
+                <Button variant="outline">Reports</Button>
+              </Link>
+              <Link href={`/projects/${projectId}/cases/new`}>
+                <Button data-testid="new-case-cta">+ New test case</Button>
+              </Link>
+            </>
+          }
+        />
 
       <Card>
         <form
@@ -82,25 +140,9 @@ export default async function CasesListPage({
             placeholder="Search by ID, title, step…"
             className="lg:col-span-2"
           />
-          <Select name="area" defaultValue={sp.area ?? "all"}>
-            <option value="all">All areas</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-          <Select name="feature" defaultValue={sp.feature ?? "all"}>
-            <option value="all">All features</option>
-            {features.map((f) => {
-              const a = areas.find((x) => x.id === f.areaId);
-              return (
-                <option key={f.id} value={f.id}>
-                  {a?.name ?? "?"} › {f.name}
-                </option>
-              );
-            })}
-          </Select>
+          {sp.folder ? (
+            <input type="hidden" name="folder" value={sp.folder} />
+          ) : null}
           <Select name="priority" defaultValue={sp.priority ?? "all"}>
             <option value="all">Any priority</option>
             <option value="critical">Critical</option>
@@ -127,7 +169,20 @@ export default async function CasesListPage({
           </div>
         </form>
 
-        {cases.length === 0 ? (
+        {!hasFilter ? (
+          <div
+            className="p-10 text-center text-sm text-(--muted)"
+            data-testid="cases-pick-folder"
+          >
+            <p className="text-(--fg)">
+              Pick a folder on the left to view its test cases.
+            </p>
+            <p className="mt-2">
+              Or use the search and filters above to query across all{" "}
+              {summary?.testCaseCount ?? "—"} cases in this project.
+            </p>
+          </div>
+        ) : cases.length === 0 ? (
           <div className="p-10 text-center text-sm text-(--muted)">
             No test cases match your filter.
           </div>
@@ -211,6 +266,21 @@ export default async function CasesListPage({
           </div>
         )}
       </Card>
-    </PageContainer>
+      </PageContainer>
+    </div>
   );
+}
+
+function countFolders(roots: { children: { children?: unknown[] }[] }[]): number {
+  let n = 0;
+  const walk = (
+    nodes: { children: { children?: unknown[] }[] }[],
+  ) => {
+    for (const node of nodes) {
+      n++;
+      walk((node.children ?? []) as never);
+    }
+  };
+  walk(roots as never);
+  return n;
 }

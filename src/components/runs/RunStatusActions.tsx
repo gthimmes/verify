@@ -6,6 +6,38 @@ import { Dialog, DialogFooter } from "@/components/ui/Dialog";
 import { Field, Input } from "@/components/ui/Input";
 import { setRunStatus } from "@/app/actions/testRuns";
 
+type StatusButtonVariant = "primary" | "outline" | "ghost" | "secondary" | "danger";
+
+function StatusButton({
+  runId,
+  projectId,
+  nextStatus,
+  label,
+  variant = "outline",
+}: {
+  runId: string;
+  projectId: string;
+  nextStatus: string;
+  label: string;
+  variant?: StatusButtonVariant;
+}) {
+  return (
+    <form action={setRunStatus} className="inline">
+      <input type="hidden" name="id" value={runId} />
+      <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="status" value={nextStatus} />
+      <Button
+        type="submit"
+        size="sm"
+        variant={variant}
+        data-testid={`run-${nextStatus}`}
+      >
+        {label}
+      </Button>
+    </form>
+  );
+}
+
 export function RunStatusActions({
   runId,
   projectId,
@@ -17,34 +49,31 @@ export function RunStatusActions({
 }) {
   const [openAbort, setOpenAbort] = useState(false);
 
-  const StatusButton = ({
-    nextStatus,
-    label,
-    variant = "outline",
-  }: {
-    nextStatus: string;
-    label: string;
-    variant?: "primary" | "outline" | "ghost" | "secondary" | "danger";
-  }) => (
-    <form action={setRunStatus} className="inline">
-      <input type="hidden" name="id" value={runId} />
-      <input type="hidden" name="projectId" value={projectId} />
-      <input type="hidden" name="status" value={nextStatus} />
-      <Button type="submit" size="sm" variant={variant} data-testid={`run-${nextStatus}`}>
-        {label}
-      </Button>
-    </form>
-  );
-
   return (
     <div className="flex items-center gap-2">
       {status === "draft" || status === "in_progress" ? (
         <>
           {status === "draft" ? (
-            <StatusButton nextStatus="in_progress" label="Start run" variant="primary" />
+            <StatusButton
+              runId={runId}
+              projectId={projectId}
+              nextStatus="in_progress"
+              label="Start run"
+              variant="primary"
+            />
           ) : null}
-          <StatusButton nextStatus="completed" label="Mark complete" />
-          <StatusButton nextStatus="blocked" label="Block" />
+          <StatusButton
+            runId={runId}
+            projectId={projectId}
+            nextStatus="completed"
+            label="Mark complete"
+          />
+          <StatusButton
+            runId={runId}
+            projectId={projectId}
+            nextStatus="blocked"
+            label="Block"
+          />
           <Button
             size="sm"
             variant="outline"
@@ -55,7 +84,9 @@ export function RunStatusActions({
           </Button>
         </>
       ) : (
-        <span className="text-xs text-(--muted)">Run is {status.replace("_", " ")}.</span>
+        <span className="text-xs text-(--muted)">
+          Run is {status.replace("_", " ")}.
+        </span>
       )}
       <Dialog
         open={openAbort}

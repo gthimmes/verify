@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -11,10 +12,25 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>;
+  searchParams: Promise<{ archived?: string; list?: string }>;
 }) {
-  const { archived } = await searchParams;
+  const { archived, list } = await searchParams;
   const showArchived = archived === "1";
+  const forceList = list === "1" || showArchived;
+
+  // When no explicit "show me the list" query is set, send the user straight
+  // to their most-recently-updated active project's folder view. The list
+  // remains reachable via /?list=1 (header nav + breadcrumbs) and /?archived=1.
+  if (!forceList) {
+    const active = await api.listProjects(false);
+    if (active.length > 0) {
+      const latest = active.reduce((a, b) =>
+        new Date(a.updatedAt).getTime() >= new Date(b.updatedAt).getTime() ? a : b,
+      );
+      redirect(`/projects/${latest.id}/cases`);
+    }
+  }
+
   const projects = await api.listProjects(showArchived);
 
   return (
@@ -26,7 +42,7 @@ export default async function HomePage({
           <>
             <Link
               className="text-sm text-(--muted) hover:text-(--accent)"
-              href={showArchived ? "/" : "/?archived=1"}
+              href={showArchived ? "/?list=1" : "/?archived=1"}
             >
               {showArchived ? "Hide archived" : "Show archived"}
             </Link>

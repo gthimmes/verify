@@ -26,54 +26,56 @@ The full product spec lives in `docs/spec.md`. Treat it as the source of truth f
 ## Where things live
 
 ```
-backend/                           # Go service
-├── cmd/server/main.go              # HTTP entrypoint (:4000)
-├── cmd/seed/main.go                # demo data CLI
-│   └── fixtures.go                 # the actual seed data
-├── internal/
-│   ├── api/router.go               # chi setup, middleware
-│   ├── api/handlers.go             # every HTTP handler in one file
-│   ├── db/db.go                    # connect + migration runner
-│   ├── db/migrations/0001_init.sql # canonical schema
-│   ├── domain/types.go             # request/response shapes
-│   └── store/store.go              # every SQL query
-├── go.mod / go.sum
+backend/                              # Go service
+├── cmd/
+│   ├── server/main.go                 # HTTP entrypoint (:4000)
+│   ├── seed/main.go + fixtures.go     # demo data CLI (idempotent by default)
+│   └── import-testiny/main.go         # Testiny xlsx importer CLI
+└── internal/
+    ├── api/router.go                  # chi setup, middleware
+    ├── api/handlers.go                # every HTTP handler in one file
+    ├── db/db.go                       # connect + embedded migration runner
+    ├── db/migrations/
+    │   ├── 0001_init.sql              # initial schema
+    │   └── 0002_folders.sql           # recursive folder tree
+    ├── domain/types.go                # JSON request/response shapes
+    ├── importer/                      # Testiny xlsx parser + apply driver
+    │   ├── folder.go, mappers.go, steps.go, reader.go, driver.go, report.go
+    │   └── testdata/fixture.xlsx      # synthetic Testiny-shaped fixture
+    └── store/store.go                 # every query, transaction-aware
 
-src/                                # Next.js (UI only)
+src/                                   # Next.js (UI only)
 ├── app/
-│   ├── layout.tsx                  # global shell
-│   ├── page.tsx                    # /  — projects list
-│   ├── runs/page.tsx               # cross-project active runs
-│   ├── search/page.tsx             # global search
-│   ├── admin/page.tsx              # cross-project rollups + audit log
-│   ├── actions/                    # Server Actions — proxy to Go API
-│   │   ├── projects.ts
-│   │   ├── areas.ts
-│   │   ├── features.ts
-│   │   ├── testCases.ts
-│   │   ├── testRuns.ts
-│   │   └── executions.ts
-│   └── projects/[projectId]/...    # per-project routes
+│   ├── layout.tsx                     # global shell
+│   ├── page.tsx, runs/, search/, admin/
+│   ├── actions/                       # Server Actions — proxy to Go API
+│   └── projects/[projectId]/...       # per-project routes (cases page renders FolderTree)
 ├── components/
-│   ├── shell/CommandKLink.tsx      # ⌘K shortcut
-│   ├── ui/                         # primitives
-│   ├── projects/                   # project-level dialogs and menus
-│   ├── testcases/TestCaseForm.tsx  # client form with steps + params + data rows
-│   └── runs/                       # NewRunForm, RunStatusActions, ExecutionRow
+│   ├── shell/, ui/                    # primitives
+│   ├── projects/                      # FolderTree (sidebar), area/feature dialogs
+│   ├── testcases/TestCaseForm.tsx     # client form with steps + params + data rows
+│   └── runs/                          # NewRunForm, RunStatusActions, ExecutionRow
 └── lib/
-    ├── api.ts                      # the only place that fetches the Go API
-    ├── auth.ts                     # current-user stub (UI only)
-    └── utils.ts                    # cn, formatDate, etc.
+    ├── api.ts                         # the *only* place that calls the Go API
+    ├── auth.ts                        # UI-only current-user stub
+    └── utils.ts
 
 docs/
-├── spec.md                         # original product spec
-├── ARCHITECTURE.md                 # how the system fits together
-├── ROADMAP.md                      # v1 → v2 roadmap
-├── AGENTS_AI_DESIGN.md             # the AI seams
-└── media/demo-tour.webm            # latest recorded demo
+├── spec.md                            # original product spec
+├── ARCHITECTURE.md                    # how the system fits together
+├── ROADMAP.md                         # v1 → v2 roadmap
+├── AGENTS_AI_DESIGN.md                # the AI seams
+└── media/demo-tour.webm               # recorded demo
 
-tests/e2e/                          # Playwright golden-path tests
-docker-compose.yml                  # Postgres 16
+tests/e2e/                             # Playwright specs
+├── _setup/globalSetup.ts              # API health + opt-in seed (PW_RESEED)
+├── golden-paths.spec.ts               # six core flows (needs demo data)
+├── api-contract.spec.ts               # field-shape contract
+├── folder-tree.spec.ts                # sidebar walking (works against any seeded project)
+├── import-flow.spec.ts                # importer E2E against fixture.xlsx
+└── demo-tour.spec.ts                  # records docs/media/demo-tour.webm
+
+docker-compose.yml                     # Postgres 16
 playwright.config.ts
 ```
 
@@ -82,16 +84,25 @@ playwright.config.ts
 - **All persistence lives in Go.** The Next.js app **never** opens a database connection. If you find yourself reaching for `pg`, `prisma`, or `better-sqlite3` in `src/`, stop — extend the Go API and call it from `src/lib/api.ts` instead.
 - **Server Actions are thin proxies.** Files in `src/app/actions/*.ts` Zod-validate input and forward to the matching Go endpoint. They're allowed to do `revalidatePath` and `redirect` after the API call returns. They are not allowed to do business logic.
 - **Reads happen in Server Components.** Pages `await api.x(...)`. No useEffect-fetching from client components.
-- **Public test IDs are stable, project-scoped.** Format `{PROJECT_KEY}-{AREA_KEY}-{4-digit-seq}`. The sequence is project-level, not area-level.
+- **Public test IDs are stable, project-scoped.** Format `{PROJECT_KEY}-{AREA_KEY}-{4-digit-seq}`. (Area-key segment is retained from the pre-folders era; new imports keep this format too, deriving the area-like segment from the first folder under the project.)
+- **Folders are the canonical hierarchy.** The `folders` table is a recursive tree (`parent_id` self-FK). Test cases reference a folder via `folder_id`. The legacy `areas` / `features` tables still exist for backwards compatibility but new code should use folders.
 - **Soft delete is `deleted_at`.** Default queries filter it out. Restore by nulling.
 - **Test runs are snapshots.** A `run_snapshot_cases` row freezes title, steps, parameters, data rows, and version at run creation. Editing the live `test_cases` row later doesn't reach back.
 - **Parameterized executions are 1-per-row.** Each `test_case_data_rows` produces its own `test_executions` (with `data_row_index`).
 - **Init slices to non-nil.** Go nil slices encode as JSON `null`. The UI iterates over arrays, so the Go store always returns `[]X{}` not `nil`. If you add a new list endpoint, do the same.
 - **No emoji in UI copy** unless the user explicitly asks.
 
+## Seeding and the importer
+
+The seed CLI is **idempotent by default**. Running it against a populated database does nothing unless you pass `--wipe` (deletes the Acme/Internal demo projects only) or `--wipe-all` (truncates every table — for the test database only).
+
+The Playwright `globalSetup` does **not** invoke the seed unless `PW_RESEED` is set. This means user-imported data (e.g. an FP project from `import-testiny`) is **never** wiped by running tests.
+
+The Testiny importer (`backend/cmd/import-testiny`) preserves the full folder structure of the source export. Folder paths like `"Demo Project > Module A > Drafts"` become three nested folders. No flattening, no project-name root-drop heuristics — the importer is faithful and the test fixture lives at `backend/internal/importer/testdata/fixture.xlsx`.
+
 ## How to add a feature
 
-1. **Schema change?** Add a numbered file in `backend/internal/db/migrations/` (e.g. `0002_add_attachments.sql`). The migration runner picks them up automatically on next server start.
+1. **Schema change?** Add a numbered file in `backend/internal/db/migrations/`. The migration runner picks them up on next server start.
 2. **Domain shape?** Add or extend a struct in `backend/internal/domain/types.go`. Mirror the JSON tags on the TS side in `src/lib/api.ts`.
 3. **Backend logic** — add a method on `*store.Store`, then a handler in `backend/internal/api/handlers.go`, then a route in `router.go`.
 4. **API client** — add a function on the `api` object in `src/lib/api.ts`. Do **not** call `fetch` directly elsewhere.
@@ -103,11 +114,11 @@ playwright.config.ts
 
 Even though v1 ships with no AI features, the architecture is *designed* for them. See `docs/AGENTS_AI_DESIGN.md` for the full plan. In short:
 
-- **Test case authoring assist.** Generate steps from a one-line title. Hook point: `actions/testCases.ts::draftFromPrompt(prompt)` calling a `internal/ai/draftcase` Go package. The form already supports edit-on-save so a draft can be pre-filled.
-- **Automation candidates ranking.** `store.ProjectReport` already computes a heuristic score. The UI shows it; replacing the score with a model-based ranking is one function swap.
-- **Failure clustering.** `test_executions.comments` + `jira_defect_keys` are the inputs. Add a `test_execution_embeddings` table when ready.
-- **Natural-language run filter.** `/cases` accepts URL filters; an LLM can parse `?nl=` into the same filter URL.
-- **Stale-automation triage.** `automation_last_reviewed_at` is the trigger; an agent can diff the referenced source against the case definition.
+- **Test case authoring assist.** Generate steps from a one-line title.
+- **Automation candidates ranking.** `store.ProjectReport` already computes a heuristic; swap to a model.
+- **Failure clustering.** `test_executions.comments` + `jira_defect_keys` are the inputs.
+- **Natural-language search.** `/cases` accepts URL filters (`q`, `priority`, `folder`...); an LLM can parse `?nl=` into them.
+- **Stale-automation triage.** `automation_last_reviewed_at` is the trigger.
 
 When you add an AI feature: keep the model call behind a thin Go module (`backend/internal/ai/<feature>/...`), pass typed inputs, return typed outputs, never let raw model strings reach the database. Always log to `audit_logs` with `action: "ai.<feature>"`.
 
@@ -117,6 +128,7 @@ When you add an AI feature: keep the model call behind a thin Go module (`backen
 - Don't reach for `prisma`, `drizzle`, or any other ORM. The Go service is the single source of truth.
 - Don't introduce a state-management library (Redux, Zustand, etc.). Server actions + URL state cover everything.
 - Don't add a custom field system to test cases. v1 is intentionally not configurable per-project.
+- Don't call the seed CLI with `--wipe` or `--wipe-all` against a database that has user data.
 
 ## Useful commands
 
@@ -127,13 +139,15 @@ docker compose down
 
 # Backend
 cd backend
-go run ./cmd/server          # API on :4000 (auto-applies migrations)
-go run ./cmd/seed            # wipes and reseeds demo data
+go run ./cmd/server                       # API on :4000 (auto-applies migrations)
+go run ./cmd/seed                         # idempotent demo seed
+go run ./cmd/import-testiny --xlsx FILE --project-key KEY --apply
 
 # Frontend
-npm run dev                  # next dev on :3000
+npm run dev                               # next dev on :3000
 
 # Tests
-npm run e2e                  # Playwright golden paths
-npm run e2e:demo             # records video into docs/media/
+npm run e2e                               # Playwright golden paths
+npm run e2e:demo                          # records video into docs/media/
+PW_RESEED=1 npm run e2e                   # force-seed before running
 ```

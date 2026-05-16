@@ -47,7 +47,7 @@ export default async function RunDetailPage({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { label: "Projects", href: "/" },
+          { label: "Projects", href: "/?list=1" },
           { label: run.projectName, href: `/projects/${projectId}` },
           { label: "Runs", href: `/projects/${projectId}/runs` },
           { label: run.name },

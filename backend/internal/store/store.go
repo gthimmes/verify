@@ -92,6 +92,25 @@ func (s *Store) ListProjects(ctx context.Context, includeArchived bool) ([]domai
 	return out, rows.Err()
 }
 
+func (s *Store) GetProjectByKey(ctx context.Context, key string) (*domain.Project, error) {
+	var p domain.Project
+	err := s.Pool.QueryRow(ctx, `
+		select p.id::text, p.key, p.name, p.description, p.status, p.owner_id::text, u.name,
+		       p.created_at, p.updated_at, p.deleted_at
+		from projects p join users u on u.id = p.owner_id
+		where p.key = $1 and p.deleted_at is null`,
+		key,
+	).Scan(&p.ID, &p.Key, &p.Name, &p.Description, &p.Status, &p.OwnerID, &p.OwnerName,
+		&p.CreatedAt, &p.UpdatedAt, &p.DeletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (s *Store) GetProject(ctx context.Context, id string) (*domain.Project, error) {
 	var p domain.Project
 	err := s.Pool.QueryRow(ctx, `
@@ -391,17 +410,19 @@ func (s *Store) SetFeatureArchived(ctx context.Context, id string, archived bool
 
 // CaseListFilter — used by /cases list.
 type CaseListFilter struct {
-	ProjectID        string
-	IncludeDeleted   bool
-	Type             string
-	Priority         string
-	Status           string
-	AutomationStatus string
-	FeatureID        string
-	AreaID           string
-	Tag              string
-	Q                string
-	Limit            int
+	ProjectID          string
+	IncludeDeleted     bool
+	Type               string
+	Priority           string
+	Status             string
+	AutomationStatus   string
+	FeatureID          string
+	AreaID             string
+	FolderID           string
+	IncludeDescendants bool // when true and FolderID is set, include cases in any descendant folder
+	Tag                string
+	Q                  string
+	Limit              int
 }
 
 // TestCaseLite — a list-row payload (no steps/dataRows).
@@ -439,6 +460,15 @@ func (s *Store) ListTestCases(ctx context.Context, f CaseListFilter) ([]TestCase
 	}
 	if f.AreaID != "" {
 		cond = append(cond, "f.area_id = "+addArg(f.AreaID))
+	}
+	if f.FolderID != "" {
+		if f.IncludeDescendants {
+			cond = append(cond, "tc.folder_id in (with recursive sub(id) as ("+
+				"select id from folders where id = "+addArg(f.FolderID)+
+				" union all select fl.id from folders fl join sub on fl.parent_id = sub.id) select id from sub)")
+		} else {
+			cond = append(cond, "tc.folder_id = "+addArg(f.FolderID))
+		}
 	}
 	if f.Tag != "" {
 		cond = append(cond, "exists (select 1 from test_case_tags ct join tags t on t.id = ct.tag_id where ct.test_case_id = tc.id and t.name = "+addArg(f.Tag)+")")
@@ -796,13 +826,13 @@ func (s *Store) DuplicateTestCase(ctx context.Context, srcID, userID string) (*d
 func insertTestCase(ctx context.Context, tx pgx.Tx, in domain.TestCaseInput, publicID string, seq int, userID string) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx, `
-		insert into test_cases(project_id,feature_id,public_id,sequence_num,title,description,preconditions,
+		insert into test_cases(project_id,feature_id,folder_id,public_id,sequence_num,title,description,preconditions,
 			final_expected,test_data_notes,type,priority,status,automation_status,automation_framework,
 			automation_ref,automation_repo_url,jira_keys,created_by_id,updated_by_id)
-		values($1,$2,$3,$4,$5,nullif($6,''),nullif($7,''),nullif($8,''),nullif($9,''),
-		       $10,$11,$12,$13,nullif($14,''),nullif($15,''),nullif($16,''),nullif($17,''),$18,$18)
+		values($1,$2,$3,$4,$5,$6,nullif($7,''),nullif($8,''),nullif($9,''),nullif($10,''),
+		       $11,$12,$13,$14,nullif($15,''),nullif($16,''),nullif($17,''),nullif($18,''),$19,$19)
 		returning id::text`,
-		in.ProjectID, in.FeatureID, publicID, seq, in.Title, in.Description, in.Preconditions,
+		in.ProjectID, in.FeatureID, in.FolderID, publicID, seq, in.Title, in.Description, in.Preconditions,
 		in.FinalExpected, in.TestDataNotes, in.Type, in.Priority, in.Status, in.AutomationStatus,
 		in.AutomationFramework, in.AutomationRef, in.AutomationRepoURL, in.JiraKeys, userID,
 	).Scan(&id)
@@ -917,6 +947,147 @@ func shortKey(s string) string {
 		out = out[:4]
 	}
 	return out
+}
+
+// ─── folders (recursive tree) ────────────────────────────────────────────────
+
+// CreateFolder inserts a folder.  When ParentID is nil the folder is at the
+// project root.  Names are unique under the same parent.
+func (s *Store) CreateFolder(ctx context.Context, in domain.CreateFolderInput) (*domain.Folder, error) {
+	in.Name = strings.TrimSpace(in.Name)
+	if len(in.Name) < 1 {
+		return nil, fmt.Errorf("name required")
+	}
+	var maxOrd int
+	if in.ParentID == nil {
+		_ = s.Pool.QueryRow(ctx, `select coalesce(max(display_order), -1) from folders where project_id = $1 and parent_id is null`, in.ProjectID).Scan(&maxOrd)
+	} else {
+		_ = s.Pool.QueryRow(ctx, `select coalesce(max(display_order), -1) from folders where project_id = $1 and parent_id = $2`, in.ProjectID, *in.ParentID).Scan(&maxOrd)
+	}
+	var desc *string
+	if d := strings.TrimSpace(in.Description); d != "" {
+		desc = &d
+	}
+	var f domain.Folder
+	err := s.Pool.QueryRow(ctx, `
+		insert into folders(project_id, parent_id, name, description, display_order)
+		values($1, $2, $3, $4, $5)
+		returning id::text, project_id::text, parent_id::text, name, description, display_order, archived, created_at, updated_at`,
+		in.ProjectID, in.ParentID, in.Name, desc, maxOrd+1,
+	).Scan(&f.ID, &f.ProjectID, &f.ParentID, &f.Name, &f.Description, &f.DisplayOrder, &f.Archived, &f.CreatedAt, &f.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+// EnsureFolderPath creates the chain of folders needed to land at `segments`
+// under `projectID`, returning the leaf folder id.  Idempotent: re-running
+// against the same path is a no-op.  Used by the importer.
+func (s *Store) EnsureFolderPath(ctx context.Context, projectID string, segments []string) (string, error) {
+	var parentID *string
+	for _, raw := range segments {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		// Look up an existing folder under this parent with this name.
+		var id string
+		var err error
+		if parentID == nil {
+			err = s.Pool.QueryRow(ctx,
+				`select id::text from folders where project_id = $1 and parent_id is null and name = $2`,
+				projectID, name).Scan(&id)
+		} else {
+			err = s.Pool.QueryRow(ctx,
+				`select id::text from folders where project_id = $1 and parent_id = $2 and name = $3`,
+				projectID, *parentID, name).Scan(&id)
+		}
+		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return "", err
+			}
+			f, err := s.CreateFolder(ctx, domain.CreateFolderInput{
+				ProjectID: projectID, ParentID: parentID, Name: name,
+			})
+			if err != nil {
+				return "", err
+			}
+			id = f.ID
+		}
+		copyID := id
+		parentID = &copyID
+	}
+	if parentID == nil {
+		return "", fmt.Errorf("no segments")
+	}
+	return *parentID, nil
+}
+
+// FolderTree returns the recursive tree for a project, with cumulative
+// case counts (including descendants) at every node.  Top-level nodes are
+// the slice's elements; each node's Children is recursively populated.
+func (s *Store) FolderTree(ctx context.Context, projectID string) ([]*domain.FolderNode, error) {
+	rows, err := s.Pool.Query(ctx, `
+		select id::text, project_id::text, parent_id::text, name, description,
+		       display_order, archived, created_at, updated_at,
+		       (select count(*) from test_cases tc
+		           where tc.folder_id = f.id and tc.deleted_at is null) as own_count
+		from folders f
+		where f.project_id = $1
+		order by f.display_order, f.name`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	all := []*domain.FolderNode{}
+	for rows.Next() {
+		var n domain.FolderNode
+		if err := rows.Scan(&n.ID, &n.ProjectID, &n.ParentID, &n.Name, &n.Description,
+			&n.DisplayOrder, &n.Archived, &n.CreatedAt, &n.UpdatedAt, &n.OwnCount); err != nil {
+			return nil, err
+		}
+		n.CaseCount = n.OwnCount
+		n.Children = []*domain.FolderNode{}
+		all = append(all, &n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]*domain.FolderNode, len(all))
+	for _, n := range all {
+		byID[n.ID] = n
+	}
+	roots := []*domain.FolderNode{}
+	for _, n := range all {
+		if n.ParentID == nil {
+			roots = append(roots, n)
+			continue
+		}
+		if p, ok := byID[*n.ParentID]; ok {
+			p.Children = append(p.Children, n)
+		} else {
+			roots = append(roots, n) // orphan — surface at root
+		}
+	}
+
+	// roll up cumulative counts: child counts add to ancestors.  Walk the
+	// tree post-order so a node has its descendants' totals before its
+	// ancestor reads it.
+	var rollup func(n *domain.FolderNode) int
+	rollup = func(n *domain.FolderNode) int {
+		total := n.CaseCount
+		for _, c := range n.Children {
+			total += rollup(c)
+		}
+		n.CaseCount = total
+		return total
+	}
+	for _, r := range roots {
+		rollup(r)
+	}
+	return roots, nil
 }
 
 // ─── runs ────────────────────────────────────────────────────────────────────
@@ -1100,12 +1271,13 @@ func snapshotAndQueue(ctx context.Context, tx pgx.Tx, runID, caseID string) erro
 		return err
 	}
 	for _, r := range dataRows {
+		order := asInt(r["order"])
 		label := r["label"]
 		if label == nil {
-			label = fmt.Sprintf("Row %d", int(r["order"].(float64))+1)
+			label = fmt.Sprintf("Row %d", order+1)
 		}
 		_, err := tx.Exec(ctx, `insert into test_executions(run_id,snapshot_case_id,data_row_index,data_row_label,result) values($1,$2,$3,$4,'not_run')`,
-			runID, snapID, int(r["order"].(float64)), label)
+			runID, snapID, order, label)
 		if err != nil {
 			return err
 		}
@@ -1166,6 +1338,26 @@ func queryDataRowsTx(ctx context.Context, tx pgx.Tx, caseID string) ([]map[strin
 		out = append(out, map[string]any{"order": ord, "label": label, "values": values})
 	}
 	return out, rows.Err()
+}
+
+// asInt accepts either int (from in-process snapshots) or float64 (from
+// JSON-decoded payloads) and returns int.  Belt and braces — the same map is
+// produced by tx queries (int) and json.Unmarshal (float64), and the caller
+// can't always tell them apart.
+func asInt(v any) int {
+	switch x := v.(type) {
+	case int:
+		return x
+	case int32:
+		return int(x)
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	case float32:
+		return int(x)
+	}
+	return 0
 }
 
 func parseDate(s string) *time.Time {

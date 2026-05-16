@@ -1,9 +1,16 @@
-// Demo seeder — wipes the DB and recreates a realistic catalog so the app is
-// meaningful to demo and to verify with Playwright.
+// Demo seeder — creates the Acme Storefront + Internal demo projects.
+//
+// By default the seeder is **idempotent and non-destructive**: it will skip
+// any project whose key already exists, and it will not touch unrelated
+// data.  Pass `--wipe` to remove the Acme/Internal demo projects before
+// re-seeding (useful for tests that want a clean fixture).  Pass
+// `--wipe-all` to truncate every table in the database (the old behaviour;
+// dangerous, intended only for the test database).
 package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -19,7 +26,13 @@ import (
 	"github.com/verify/backend/internal/store"
 )
 
+var demoProjectKeys = []string{"ACM", "INT"}
+
 func main() {
+	wipeDemos := flag.Bool("wipe", false, "delete Acme + Internal demo projects before re-seeding")
+	wipeAll := flag.Bool("wipe-all", false, "DANGEROUS: truncate every table in the database before re-seeding (test DB only)")
+	flag.Parse()
+
 	_ = godotenv.Load(".env", "../.env")
 	ctx := context.Background()
 	pool, err := db.Connect(ctx)
@@ -30,8 +43,26 @@ func main() {
 	if err := db.Migrate(ctx, pool); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	if err := wipe(ctx, pool); err != nil {
-		log.Fatalf("wipe: %v", err)
+	switch {
+	case *wipeAll:
+		if err := wipe(ctx, pool); err != nil {
+			log.Fatalf("wipe: %v", err)
+		}
+	case *wipeDemos:
+		if err := wipeDemoProjects(ctx, pool); err != nil {
+			log.Fatalf("wipe demos: %v", err)
+		}
+	default:
+		// Default: idempotent.  If the demos already exist, exit cleanly so
+		// shared test/dev databases don't get clobbered.
+		exists, err := demosAlreadyPresent(ctx, pool)
+		if err != nil {
+			log.Fatalf("check demos: %v", err)
+		}
+		if exists {
+			fmt.Println("[seed] Acme/Internal demos already present — nothing to do (pass --wipe to refresh)")
+			return
+		}
 	}
 	st := store.New(pool)
 	admin, err := st.EnsureUser(ctx, "demo@verify.local", "Demo Admin", "admin")
@@ -206,6 +237,41 @@ func wipe(ctx context.Context, pool *pgxpool.Pool) error {
 		if _, err := pool.Exec(ctx, "delete from "+t); err != nil {
 			return fmt.Errorf("delete from %s: %w", t, err)
 		}
+	}
+	return nil
+}
+
+// demosAlreadyPresent returns true when *every* demo project key in
+// demoProjectKeys is already in the database, in which case the seed has
+// nothing useful to add and should exit silently.  This is the property
+// that makes the default mode safe to run against a populated database.
+func demosAlreadyPresent(ctx context.Context, pool *pgxpool.Pool) (bool, error) {
+	for _, key := range demoProjectKeys {
+		var exists bool
+		err := pool.QueryRow(ctx, `select exists(select 1 from projects where key = $1)`, key).Scan(&exists)
+		if err != nil {
+			return false, err
+		}
+		if !exists {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// wipeDemoProjects removes the Acme + Internal demo projects and their
+// dependent runs.  Unlike wipe(), it leaves everything else (imported
+// projects, audit log, tags) intact — safe to run against a working DB.
+func wipeDemoProjects(ctx context.Context, pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(ctx, `
+		delete from test_runs where project_id in (select id from projects where key = any($1))
+	`, demoProjectKeys); err != nil {
+		return fmt.Errorf("wipe runs: %w", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		delete from projects where key = any($1)
+	`, demoProjectKeys); err != nil {
+		return fmt.Errorf("wipe projects: %w", err)
 	}
 	return nil
 }

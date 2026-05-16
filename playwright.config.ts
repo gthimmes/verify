@@ -5,12 +5,14 @@ const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: ["**/_setup/**"],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: [["list"]],
+  reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
+  globalSetup: "./tests/e2e/_setup/globalSetup.ts",
   use: {
     baseURL,
     headless: true,

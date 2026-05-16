@@ -18,7 +18,7 @@ export function NewFeatureButton({
   areaName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, _action, pending] = useActionState(createFeature, initial);
+  const [state, , pending] = useActionState(createFeature, initial);
 
   return (
     <>
@@ -41,7 +41,6 @@ export function NewFeatureButton({
           action={async (fd) => {
             const result = await createFeature(state, fd);
             if (result.ok) setOpen(false);
-            return result;
           }}
           className="flex flex-col gap-4"
         >

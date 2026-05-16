@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogFooter } from "@/components/ui/Dialog";
 import { Input, Textarea, Field } from "@/components/ui/Input";
@@ -10,14 +10,7 @@ const initial: AreaFormState = { ok: true };
 
 export function NewAreaButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(createArea, initial);
-
-  useEffect(() => {
-    if (state.ok && state.message === undefined && !pending) {
-      // the action returns ok:true on success — close the dialog
-      // but we need to detect a successful submit specifically.
-    }
-  }, [state, pending]);
+  const [state, , pending] = useActionState(createArea, initial);
 
   return (
     <>
@@ -39,7 +32,6 @@ export function NewAreaButton({ projectId }: { projectId: string }) {
           action={async (fd) => {
             const result = await createArea(state, fd);
             if (result.ok) setOpen(false);
-            return result;
           }}
           className="flex flex-col gap-4"
         >
