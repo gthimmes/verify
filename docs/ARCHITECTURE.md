@@ -162,6 +162,7 @@ When the architecture *should* change, change the test first; the rules will the
 | E2E golden paths | `tests/e2e/golden-paths.spec.ts` | home → project → cases → run → execute → reports → search |
 | Folder tree E2E | `tests/e2e/folder-tree.spec.ts` | sidebar rendering, expand/collapse, click-to-filter |
 | Import flow E2E | `tests/e2e/import-flow.spec.ts` | runs importer against fixture, asserts UI |
+| Team features E2E | `tests/e2e/team-features.spec.ts` | CSV export link, bulk toolbar, saved filters, version history |
 | Demo tour | `tests/e2e/demo-tour.spec.ts` | produces `docs/media/demo-tour.webm` |
 | Lint | `eslint.config.mjs` + `go vet` | style + boundary rules |
 
