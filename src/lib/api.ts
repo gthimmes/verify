@@ -253,6 +253,14 @@ export type Execution = {
   attempts: ExecutionAttempt[];
 };
 
+export type CaseVersionMeta = {
+  version: number;
+  changedByName: string;
+  changedAt: string;
+};
+
+export type CaseVersion = CaseVersionMeta & { snapshot: TestCaseInput };
+
 export type SavedFilter = {
   id: ID;
   projectId: ID;
@@ -398,6 +406,12 @@ export const api = {
       buildOverride?: string;
     },
   ) => request<void>(`/executions/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+
+  // version history
+  listCaseVersions: (caseId: ID) =>
+    request<CaseVersionMeta[]>(`/cases/${caseId}/versions`),
+  getCaseVersion: (caseId: ID, version: number) =>
+    request<CaseVersion>(`/cases/${caseId}/versions/${version}`),
 
   // saved filters
   listSavedFilters: (projectId: ID, scope = "cases") =>

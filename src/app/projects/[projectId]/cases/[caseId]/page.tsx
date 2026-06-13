@@ -249,7 +249,15 @@ export default async function CaseDetailPage({
           <Card>
             <CardHeader title="Audit" />
             <CardBody className="flex flex-col gap-2 text-xs text-(--muted)">
-              <div>Version {tc.version}</div>
+              <div>
+                <Link
+                  href={`/projects/${projectId}/cases/${tc.id}/history`}
+                  className="text-(--accent) hover:underline"
+                  data-testid="case-history-link"
+                >
+                  Version {tc.version} · view history
+                </Link>
+              </div>
               <div>
                 Created by {tc.createdByName} · {formatDate(tc.createdAt)}
               </div>

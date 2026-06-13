@@ -283,6 +283,29 @@ func (s *Server) restoreCase(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
+func (s *Server) listCaseVersions(w http.ResponseWriter, r *http.Request) {
+	versions, err := s.Store.ListCaseVersions(r.Context(), chi.URLParam(r, "caseId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, versions)
+}
+
+func (s *Server) getCaseVersion(w http.ResponseWriter, r *http.Request) {
+	version, err := strconv.Atoi(chi.URLParam(r, "version"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := s.Store.GetCaseVersion(r.Context(), chi.URLParam(r, "caseId"), version)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, v)
+}
+
 func (s *Server) bulkUpdateCases(w http.ResponseWriter, r *http.Request) {
 	var in domain.BulkCaseRequest
 	if err := decode(r, &in); err != nil {
