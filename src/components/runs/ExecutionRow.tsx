@@ -19,6 +19,7 @@ type ExecutionForExec = {
   dataRowIndex: number | null;
   dataRowLabel: string | null;
   attempts: { attemptNum: number; result: string; executedAt: Date | null }[];
+  stepResults?: { order: number; result: string }[];
   values?: Record<string, string>;
   caseSnapshot: {
     publicId: string;
@@ -50,8 +51,31 @@ export function ExecutionRow({
 }) {
   const [open, setOpen] = useState(expand);
   const [pendingResult, setPendingResult] = useState(execution.result);
+  const [stepResults, setStepResults] = useState<Record<number, string>>(() => {
+    const m: Record<number, string> = {};
+    (execution.stepResults ?? []).forEach((s) => {
+      m[s.order] = s.result;
+    });
+    return m;
+  });
   const formRef = useRef<HTMLFormElement>(null);
   const submittingRef = useRef(false);
+
+  function setStep(order: number, result: "pass" | "fail") {
+    setStepResults((prev) => ({
+      ...prev,
+      [order]: prev[order] === result ? "" : result,
+    }));
+  }
+
+  const stepResultsJson = JSON.stringify(
+    Object.entries(stepResults)
+      .filter(([, r]) => r === "pass" || r === "fail")
+      .map(([order, result]) => ({ order: Number(order), result })),
+  );
+  const steps = execution.caseSnapshot.steps;
+  const stepPassCount = steps.filter((s) => stepResults[s.order] === "pass").length;
+  const stepFailCount = steps.filter((s) => stepResults[s.order] === "fail").length;
 
   function quickRecord(result: string) {
     if (!formRef.current || submittingRef.current) return;
@@ -117,24 +141,50 @@ export function ExecutionRow({
               </p>
             </Section>
           ) : null}
-          <Section title="Steps">
+          <Section
+            title={
+              steps.length > 0
+                ? `Steps — ${stepPassCount} pass, ${stepFailCount} fail of ${steps.length}`
+                : "Steps"
+            }
+          >
             <ol className="flex flex-col gap-2">
-              {execution.caseSnapshot.steps.map((s, i) => (
-                <li
-                  key={i}
-                  className="grid grid-cols-[28px_1fr_1fr] gap-3 rounded-md border border-(--border) bg-(--bg) p-3 text-sm"
-                >
-                  <div className="text-center font-semibold text-(--muted)">
-                    {i + 1}
-                  </div>
-                  <div className="whitespace-pre-wrap">
-                    {applyValues(s.action, execution.values)}
-                  </div>
-                  <div className="whitespace-pre-wrap">
-                    {applyValues(s.expected, execution.values)}
-                  </div>
-                </li>
-              ))}
+              {steps.map((s, i) => {
+                const sr = stepResults[s.order] ?? "";
+                return (
+                  <li
+                    key={i}
+                    className="grid grid-cols-[28px_1fr_1fr_auto] gap-3 rounded-md border border-(--border) bg-(--bg) p-3 text-sm"
+                    data-testid="exec-step"
+                  >
+                    <div className="text-center font-semibold text-(--muted)">{i + 1}</div>
+                    <div className="whitespace-pre-wrap">
+                      {applyValues(s.action, execution.values)}
+                    </div>
+                    <div className="whitespace-pre-wrap">
+                      {applyValues(s.expected, execution.values)}
+                    </div>
+                    <div className="flex items-start gap-1">
+                      <StepToggle
+                        active={sr === "pass"}
+                        tone="success"
+                        onClick={() => setStep(s.order, "pass")}
+                        testid={`step-pass-${i}`}
+                      >
+                        ✓
+                      </StepToggle>
+                      <StepToggle
+                        active={sr === "fail"}
+                        tone="danger"
+                        onClick={() => setStep(s.order, "fail")}
+                        testid={`step-fail-${i}`}
+                      >
+                        ✕
+                      </StepToggle>
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
           </Section>
           {execution.caseSnapshot.finalExpected ? (
@@ -155,6 +205,7 @@ export function ExecutionRow({
             <input type="hidden" name="runId" value={runId} />
             <input type="hidden" name="projectId" value={projectId} />
             <input type="hidden" name="result" value={pendingResult} />
+            <input type="hidden" name="stepResultsJson" value={stepResultsJson} />
             <Field label="Comments" htmlFor={`comments-${execution.id}`} className="lg:col-span-2">
               <Textarea
                 id={`comments-${execution.id}`}
@@ -244,6 +295,34 @@ function ResultButton({
       className={`h-7 rounded-md border bg-white px-2.5 text-xs font-medium ${cls}`}
       data-testid={`result-${tone === "muted" ? "skip" : tone === "success" ? "pass" : tone === "danger" ? "fail" : "block"}`}
     >
+      {children}
+    </button>
+  );
+}
+
+function StepToggle({
+  active,
+  tone,
+  onClick,
+  children,
+  testid,
+}: {
+  active: boolean;
+  tone: "success" | "danger";
+  onClick: () => void;
+  children: React.ReactNode;
+  testid: string;
+}) {
+  const base = "h-6 w-6 rounded border text-xs font-bold transition-colors";
+  const cls = active
+    ? tone === "success"
+      ? "border-(--success) bg-(--success) text-white"
+      : "border-(--danger) bg-(--danger) text-white"
+    : tone === "success"
+      ? "border-(--border) text-(--success) hover:bg-(--success-soft)"
+      : "border-(--border) text-(--danger) hover:bg-(--danger-soft)";
+  return (
+    <button type="button" onClick={onClick} className={`${base} ${cls}`} data-testid={testid}>
       {children}
     </button>
   );

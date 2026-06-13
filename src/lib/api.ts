@@ -248,6 +248,7 @@ export type Execution = {
   buildOverride: string | null;
   comments: string | null;
   jiraDefectKeys: string | null;
+  stepResults: { order: number; result: string }[];
   updatedAt: string;
   snapshotCase: SnapshotCase;
   attempts: ExecutionAttempt[];
@@ -404,6 +405,7 @@ export const api = {
       jiraDefectKeys?: string;
       envOverride?: string;
       buildOverride?: string;
+      stepResults?: { order: number; result: string }[];
     },
   ) => request<void>(`/executions/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
 

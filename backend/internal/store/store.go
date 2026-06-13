@@ -1619,7 +1619,7 @@ func (s *Store) ListExecutions(ctx context.Context, runID string) ([]domain.Exec
 	rows, err := s.Pool.Query(ctx, `
 		select e.id::text, e.run_id::text, e.snapshot_case_id::text, e.data_row_index, e.data_row_label,
 		       e.result, e.executed_by_id::text, u.name, e.executed_at, e.duration_seconds,
-		       e.env_override, e.build_override, e.comments, e.jira_defect_keys, e.updated_at,
+		       e.env_override, e.build_override, e.comments, e.jira_defect_keys, e.step_results_json, e.updated_at,
 		       sc.public_id, sc.test_case_id::text, sc.title, sc.description, sc.preconditions,
 		       sc.final_expected, sc.type, sc.priority, sc.snapshot_json, sc.version
 		from test_executions e
@@ -1635,15 +1635,20 @@ func (s *Store) ListExecutions(ctx context.Context, runID string) ([]domain.Exec
 	for rows.Next() {
 		var e domain.Execution
 		var raw []byte
+		var stepRaw []byte
 		if err := rows.Scan(&e.ID, &e.RunID, &e.SnapshotCaseID, &e.DataRowIndex, &e.DataRowLabel,
 			&e.Result, &e.ExecutedByID, &e.ExecutedByName, &e.ExecutedAt, &e.DurationSeconds,
-			&e.EnvOverride, &e.BuildOverride, &e.Comments, &e.JiraDefectKeys, &e.UpdatedAt,
+			&e.EnvOverride, &e.BuildOverride, &e.Comments, &e.JiraDefectKeys, &stepRaw, &e.UpdatedAt,
 			&e.SnapshotCase.PublicID, &e.SnapshotCase.TestCaseID, &e.SnapshotCase.Title, &e.SnapshotCase.Description,
 			&e.SnapshotCase.Preconditions, &e.SnapshotCase.FinalExpected, &e.SnapshotCase.Type,
 			&e.SnapshotCase.Priority, &raw, &e.SnapshotCase.Version); err != nil {
 			return nil, err
 		}
 		e.SnapshotCase.ID = e.SnapshotCaseID
+		e.StepResults = []domain.StepResult{}
+		if len(stepRaw) > 0 {
+			_ = json.Unmarshal(stepRaw, &e.StepResults)
+		}
 		var snap struct {
 			Steps []struct {
 				Order    int    `json:"order"`
@@ -1737,6 +1742,15 @@ func (s *Store) RecordExecution(ctx context.Context, id string, in domain.Record
 		now := time.Now()
 		executedAt = &now
 	}
+	// Normalise + serialise the per-step checklist.  nil/empty → SQL NULL.
+	var stepResultsJSON []byte
+	if cleaned := cleanStepResults(in.StepResults); len(cleaned) > 0 {
+		b, err := json.Marshal(cleaned)
+		if err != nil {
+			return err
+		}
+		stepResultsJSON = b
+	}
 	if _, err := tx.Exec(ctx, `
 		update test_executions set
 			result = $1,
@@ -1747,9 +1761,10 @@ func (s *Store) RecordExecution(ctx context.Context, id string, in domain.Record
 			jira_defect_keys = nullif($6,''),
 			env_override = nullif($7,''),
 			build_override = nullif($8,''),
+			step_results_json = $9,
 			updated_at = now()
-		where id = $9`,
-		in.Result, userID, executedAt, in.DurationSeconds, in.Comments, in.JiraDefectKeys, in.EnvOverride, in.BuildOverride, id); err != nil {
+		where id = $10`,
+		in.Result, userID, executedAt, in.DurationSeconds, in.Comments, in.JiraDefectKeys, in.EnvOverride, in.BuildOverride, stepResultsJSON, id); err != nil {
 		return err
 	}
 	if in.Result != "not_run" {
@@ -1762,6 +1777,18 @@ func (s *Store) RecordExecution(ctx context.Context, id string, in domain.Record
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// cleanStepResults drops untriaged entries and rejects results outside the
+// allowed set so junk never reaches step_results_json.
+func cleanStepResults(in []domain.StepResult) []domain.StepResult {
+	out := []domain.StepResult{}
+	for _, sr := range in {
+		if sr.Result == "pass" || sr.Result == "fail" {
+			out = append(out, domain.StepResult{Order: sr.Order, Result: sr.Result})
+		}
+	}
+	return out
 }
 
 // ─── audit logs ──────────────────────────────────────────────────────────────
