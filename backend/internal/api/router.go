@@ -100,6 +100,11 @@ func (s *Server) Routes() http.Handler {
 		// executions
 		r.Patch("/executions/{executionId}", s.recordExecution)
 
+		// saved filters
+		r.Get("/projects/{projectId}/saved-filters", s.listSavedFilters)
+		r.Post("/projects/{projectId}/saved-filters", s.createSavedFilter)
+		r.Delete("/saved-filters/{filterId}", s.deleteSavedFilter)
+
 		// reports + audit + search
 		r.Get("/projects/{projectId}/report", s.projectReport)
 		r.Get("/audit/recent", s.recentAudit)

@@ -253,6 +253,19 @@ export type Execution = {
   attempts: ExecutionAttempt[];
 };
 
+export type SavedFilter = {
+  id: ID;
+  projectId: ID;
+  ownerId: ID | null;
+  ownerName: string;
+  name: string;
+  scope: string;
+  query: Record<string, string>;
+  shared: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AuditLog = {
   id: ID;
   action: string;
@@ -385,6 +398,20 @@ export const api = {
       buildOverride?: string;
     },
   ) => request<void>(`/executions/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+
+  // saved filters
+  listSavedFilters: (projectId: ID, scope = "cases") =>
+    request<SavedFilter[]>(`/projects/${projectId}/saved-filters?scope=${scope}`),
+  createSavedFilter: (
+    projectId: ID,
+    body: { name: string; scope?: string; query: Record<string, string>; shared?: boolean },
+  ) =>
+    request<SavedFilter>(`/projects/${projectId}/saved-filters`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteSavedFilter: (id: ID) =>
+    request<void>(`/saved-filters/${id}`, { method: "DELETE" }),
 
   // exports (CSV)
   exportRunCsv: (runId: ID) => requestText(`/runs/${runId}/export.csv`),

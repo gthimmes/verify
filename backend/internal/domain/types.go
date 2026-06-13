@@ -309,6 +309,29 @@ type RecordExecutionInput struct {
 	BuildOverride   string `json:"buildOverride"`
 }
 
+// SavedFilter is a named, reusable set of list-filter parameters.  Owned by
+// the user who created it; `Shared` makes it visible to the whole project.
+type SavedFilter struct {
+	ID        string            `json:"id"`
+	ProjectID string            `json:"projectId"`
+	OwnerID   *string           `json:"ownerId"`
+	OwnerName string            `json:"ownerName"`
+	Name      string            `json:"name"`
+	Scope     string            `json:"scope"`
+	Query     map[string]string `json:"query"`
+	Shared    bool              `json:"shared"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+}
+
+type CreateSavedFilterInput struct {
+	ProjectID string            `json:"projectId"`
+	Name      string            `json:"name"`
+	Scope     string            `json:"scope"`
+	Query     map[string]string `json:"query"`
+	Shared    bool              `json:"shared"`
+}
+
 // AuditLog
 type AuditLog struct {
 	ID        string    `json:"id"`

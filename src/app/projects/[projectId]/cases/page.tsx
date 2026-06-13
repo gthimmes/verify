@@ -8,6 +8,7 @@ import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { Input, Select } from "@/components/ui/Input";
 import { FolderTree } from "@/components/projects/FolderTree";
 import { CasesBulkTable } from "@/components/testcases/CasesBulkTable";
+import { SavedFiltersBar } from "@/components/testcases/SavedFiltersBar";
 
 export const dynamic = "force-dynamic";
 
@@ -33,12 +34,13 @@ export default async function CasesListPage({
 }) {
   const { projectId } = await params;
   const sp = await searchParams;
-  let project, folders, summary;
+  let project, folders, summary, savedFilters;
   try {
-    [project, folders, summary] = await Promise.all([
+    [project, folders, summary, savedFilters] = await Promise.all([
       api.getProject(projectId),
       api.folders(projectId),
       api.listProjects(false).then((all) => all.find((p) => p.id === projectId)),
+      api.listSavedFilters(projectId).catch(() => []),
     ]);
   } catch {
     return notFound();
@@ -85,6 +87,18 @@ export default async function CasesListPage({
   const exportHref = `/projects/${projectId}/cases/export${
     exportQuery.toString() ? `?${exportQuery.toString()}` : ""
   }`;
+
+  // currentQuery mirrors the /cases searchParams so a saved filter reloads the
+  // exact same view. Only set keys are included.
+  const currentQuery: Record<string, string> = {};
+  if (queryFilter) currentQuery.q = queryFilter;
+  if (typeFilter) currentQuery.type = typeFilter;
+  if (priorityFilter) currentQuery.priority = priorityFilter;
+  if (statusFilter) currentQuery.status = statusFilter;
+  if (automationFilter) currentQuery.automation = automationFilter;
+  if (folderFilter) currentQuery.folder = folderFilter;
+  if (tagFilter) currentQuery.tag = tagFilter;
+  if (sp.archived === "1") currentQuery.archived = "1";
 
   const cases = hasFilter
     ? await api.listCases(projectId, {
@@ -196,6 +210,13 @@ export default async function CasesListPage({
             ) : null}
           </div>
         </form>
+
+        <SavedFiltersBar
+          projectId={projectId}
+          filters={savedFilters}
+          currentQuery={currentQuery}
+          canSave={hasFilter}
+        />
 
         {!hasFilter ? (
           <div
