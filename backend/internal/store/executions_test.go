@@ -33,6 +33,60 @@ func TestRecordExecution_setsResultAndPromotesRunToInProgress(t *testing.T) {
 	}
 }
 
+func TestRecordExecution_persistsStepResults(t *testing.T) {
+	s, uid := newTest(t)
+	pid, caseIDs := runFixture(t, s, uid)
+	run, err := s.CreateRun(context.Background(), domain.CreateRunInput{ProjectID: pid, Name: "StepResults", CaseIDs: caseIDs}, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execs, _ := s.ListExecutions(context.Background(), run.ID)
+
+	// "" and "blocked" entries should be dropped; only pass/fail survive.
+	if err := s.RecordExecution(context.Background(), execs[0].ID, domain.RecordExecutionInput{
+		Result: "fail",
+		StepResults: []domain.StepResult{
+			{Order: 0, Result: "pass"},
+			{Order: 1, Result: "fail"},
+			{Order: 2, Result: ""},
+			{Order: 3, Result: "blocked"},
+		},
+	}, uid); err != nil {
+		t.Fatal(err)
+	}
+
+	got, _ := s.ListExecutions(context.Background(), run.ID)
+	var target *domain.Execution
+	for i := range got {
+		if got[i].ID == execs[0].ID {
+			target = &got[i]
+		}
+	}
+	if target == nil {
+		t.Fatal("execution not found after record")
+	}
+	if len(target.StepResults) != 2 {
+		t.Fatalf("expected 2 step results (pass/fail kept), got %d: %+v", len(target.StepResults), target.StepResults)
+	}
+	if target.StepResults[0].Order != 0 || target.StepResults[0].Result != "pass" {
+		t.Fatalf("step 0: %+v", target.StepResults[0])
+	}
+	if target.StepResults[1].Order != 1 || target.StepResults[1].Result != "fail" {
+		t.Fatalf("step 1: %+v", target.StepResults[1])
+	}
+
+	// Recording again with no step results clears the column.
+	if err := s.RecordExecution(context.Background(), execs[0].ID, domain.RecordExecutionInput{Result: "pass"}, uid); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.ListExecutions(context.Background(), run.ID)
+	for i := range got {
+		if got[i].ID == execs[0].ID && len(got[i].StepResults) != 0 {
+			t.Fatalf("expected step results cleared, got %+v", got[i].StepResults)
+		}
+	}
+}
+
 func TestRecordExecution_keepsHistoryOnReRecord(t *testing.T) {
 	s, uid := newTest(t)
 	pid, caseIDs := runFixture(t, s, uid)

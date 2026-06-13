@@ -293,6 +293,13 @@ type ExecutionAttempt struct {
 	DurationSeconds *int      `json:"durationSeconds"`
 }
 
+// StepResult is one row of a per-step pass/fail checklist recorded during
+// execution.  Order matches the step's order in the snapshot.
+type StepResult struct {
+	Order  int    `json:"order"`
+	Result string `json:"result"` // "pass" | "fail" | "" (untriaged)
+}
+
 type Execution struct {
 	ID              string             `json:"id"`
 	RunID           string             `json:"runId"`
@@ -308,6 +315,7 @@ type Execution struct {
 	BuildOverride   *string            `json:"buildOverride"`
 	Comments        *string            `json:"comments"`
 	JiraDefectKeys  *string            `json:"jiraDefectKeys"`
+	StepResults     []StepResult       `json:"stepResults"`
 	UpdatedAt       time.Time          `json:"updatedAt"`
 	SnapshotCase    SnapshotCase       `json:"snapshotCase"`
 	Attempts        []ExecutionAttempt `json:"attempts"`
@@ -315,12 +323,13 @@ type Execution struct {
 
 // RecordExecutionInput — the payload from the run-execution UI.
 type RecordExecutionInput struct {
-	Result          string `json:"result"`
-	Comments        string `json:"comments"`
-	DurationSeconds *int   `json:"durationSeconds"`
-	JiraDefectKeys  string `json:"jiraDefectKeys"`
-	EnvOverride     string `json:"envOverride"`
-	BuildOverride   string `json:"buildOverride"`
+	Result          string       `json:"result"`
+	Comments        string       `json:"comments"`
+	DurationSeconds *int         `json:"durationSeconds"`
+	JiraDefectKeys  string       `json:"jiraDefectKeys"`
+	EnvOverride     string       `json:"envOverride"`
+	BuildOverride   string       `json:"buildOverride"`
+	StepResults     []StepResult `json:"stepResults"`
 }
 
 // SavedFilter is a named, reusable set of list-filter parameters.  Owned by

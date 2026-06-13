@@ -124,6 +124,7 @@ export default async function ExecuteRunPage({
                   dataRowIndex: e.dataRowIndex,
                   dataRowLabel: e.dataRowLabel,
                   values: dataRow?.values,
+                  stepResults: e.stepResults,
                   attempts: e.attempts.map((a) => ({
                     attemptNum: a.attemptNum,
                     result: a.result,

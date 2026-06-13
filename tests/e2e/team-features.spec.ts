@@ -58,6 +58,44 @@ test.describe("Verify — team features", () => {
     await expect(page.getByTestId("cases-table")).toBeVisible();
   });
 
+  test("per-step pass/fail is recorded and persists", async ({ page, request }) => {
+    const api = "http://localhost:4000/api/v1";
+    // Create a fresh run so step state starts clean (the toggle is stateful, so
+    // reusing a shared run would make the test non-idempotent).
+    const projects = await (await request.get(`${api}/projects`)).json();
+    const projectId = projects[0].id;
+    const cases = await (
+      await request.get(`${api}/projects/${projectId}/cases?limit=25`)
+    ).json();
+    // Pick a case with steps and NO parameters so the run has exactly one
+    // execution that auto-expands (parameterized cases fan out per data row).
+    let chosen: string | null = null;
+    for (const c of cases) {
+      const full = await (await request.get(`${api}/cases/${c.id}`)).json();
+      if (full.steps.length >= 1 && full.parameters.length === 0) {
+        chosen = c.id;
+        break;
+      }
+    }
+    test.skip(!chosen, "no single-execution case with steps in the seed");
+    const run = await (
+      await request.post(`${api}/projects/${projectId}/runs`, {
+        data: { name: `Step results ${Date.now()}`, caseIds: [chosen] },
+      })
+    ).json();
+
+    await page.goto(`/projects/${projectId}/runs/${run.id}/execute`);
+    const row = page.getByTestId("execution-row").first();
+    await expect(row.getByTestId("step-pass-0")).toBeVisible();
+
+    await row.getByTestId("step-pass-0").click();
+    await row.getByTestId("execution-save").click();
+
+    // Reload: exactly the toggled row should now report one passing step.
+    await page.reload();
+    await expect(page.getByText(/Steps — 1 pass/).first()).toBeVisible();
+  });
+
   test("a case exposes its version history", async ({ page }) => {
     await gotoAcmeCases(page);
     // Open the first case in the filtered list.
