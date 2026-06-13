@@ -31,7 +31,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 6. **CSV / PDF export.** ✅ CSV shipped (per-run results + filtered case list, synchronous Go endpoints). PDF still pending — queue it through the v2 job runner.
 7. **Saved filters.** ✅ Shipped for `/cases` (`saved_filters` table + endpoints + save/load UI, with a `shared` flag). Still to do: extend to `/runs`.
 8. **Step-level results.** ✅ Shipped: per-step pass/fail toggles on the run-execution row, persisted to `test_executions.step_results_json` and surfaced as a "N pass, M fail" summary.
-9. **Bulk operations.** ✅ Shipped: bulk priority/status/automation edit, move between folders, and soft delete/restore on `/cases`.
+9. **Bulk operations.** ✅ Shipped: bulk priority/status/automation edit, move between folders, soft delete/restore, and add/remove tag on `/cases`.
 10. **Drag-and-drop folder reordering** + folder rename/archive UI.
 11. **Test case relations and version history viewer.** ✅ Version diff viewer shipped (per-case timeline + field-level diff off `test_case_versions`). Still to do: `test_case_relations` (see-also links) schema + UI.
 12. **Drop legacy areas/features tables** after the new-case form and run-creation flow are migrated to use folders directly (currently both still pass a synthesised `feature_id` to satisfy a not-null FK).

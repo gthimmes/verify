@@ -835,6 +835,12 @@ func (s *Store) BulkUpdateCases(ctx context.Context, req domain.BulkCaseRequest,
 		return 0, fmt.Errorf("too many cases in one request (max 1000)")
 	}
 
+	// Tag add/remove touch the test_case_tags join table rather than a column
+	// on test_cases, so they take their own path.
+	if req.Op == "addTag" || req.Op == "removeTag" {
+		return s.bulkTag(ctx, req, userID)
+	}
+
 	var setClause string
 	var value any
 	switch req.Op {
@@ -894,6 +900,63 @@ func (s *Store) BulkUpdateCases(ctx context.Context, req domain.BulkCaseRequest,
 	// and keep the full op/count in the audit payload.
 	if err := writeAudit(ctx, tx, userID, "test_case.bulk_update", "TestCase", req.CaseIDs[0],
 		nil, map[string]any{"op": req.Op, "value": req.Value, "count": affected, "caseIds": req.CaseIDs}); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
+// bulkTag adds or removes one tag across many cases in a single transaction.
+func (s *Store) bulkTag(ctx context.Context, req domain.BulkCaseRequest, userID string) (int, error) {
+	tag := strings.TrimSpace(req.Value)
+	if tag == "" {
+		return 0, fmt.Errorf("tag name required")
+	}
+	if len(tag) > 40 {
+		return 0, fmt.Errorf("tag too long")
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	var affected int
+	if req.Op == "addTag" {
+		var tagID string
+		if err := tx.QueryRow(ctx, `
+			insert into tags(name) values($1) on conflict(name) do update set name = excluded.name
+			returning id::text`, tag).Scan(&tagID); err != nil {
+			return 0, err
+		}
+		tagResult, err := tx.Exec(ctx, `
+			insert into test_case_tags(test_case_id, tag_id)
+			select id, $1 from test_cases where id = any($2::uuid[])
+			on conflict do nothing`, tagID, req.CaseIDs)
+		if err != nil {
+			return 0, err
+		}
+		affected = int(tagResult.RowsAffected())
+	} else { // removeTag
+		tagResult, err := tx.Exec(ctx, `
+			delete from test_case_tags
+			where test_case_id = any($1::uuid[])
+			  and tag_id = (select id from tags where name = $2)`, req.CaseIDs, tag)
+		if err != nil {
+			return 0, err
+		}
+		affected = int(tagResult.RowsAffected())
+	}
+
+	// Bump updated_at/updated_by on the touched cases so the change is visible.
+	if _, err := tx.Exec(ctx, `update test_cases set updated_at = now(), updated_by_id = $1 where id = any($2::uuid[])`,
+		userID, req.CaseIDs); err != nil {
+		return 0, err
+	}
+	if err := writeAudit(ctx, tx, userID, "test_case.bulk_update", "TestCase", req.CaseIDs[0],
+		nil, map[string]any{"op": req.Op, "value": tag, "count": affected, "caseIds": req.CaseIDs}); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {

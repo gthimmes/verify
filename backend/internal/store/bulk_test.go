@@ -98,6 +98,57 @@ func TestBulkUpdateCases_deleteAndRestore(t *testing.T) {
 	}
 }
 
+func TestBulkUpdateCases_addAndRemoveTag(t *testing.T) {
+	s, uid := newTest(t)
+	ctx := context.Background()
+	p := makeProject(t, s, uid, "ACM", "Acme")
+	a := makeArea(t, s, p.ID, "PAY", "Payments")
+	f := makeFeature(t, s, p.ID, a.ID, "One-time")
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Taggable one"}, uid)
+	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Taggable two", Tags: []string{"regression"}}, uid)
+	ids := []string{c1.ID, c2.ID}
+
+	// add "smoke" to both
+	n, err := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: ids, Op: "addTag", Value: "smoke"}, uid)
+	if err != nil {
+		t.Fatalf("addTag: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("addTag affected: want 2, got %d", n)
+	}
+	for _, id := range ids {
+		got, _ := s.GetTestCase(ctx, id)
+		if !contains(got.Tags, "smoke") {
+			t.Fatalf("case %s missing smoke tag: %v", id, got.Tags)
+		}
+	}
+	// adding again is a no-op (on conflict do nothing)
+	if n, _ := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: ids, Op: "addTag", Value: "smoke"}, uid); n != 0 {
+		t.Fatalf("re-add should affect 0, got %d", n)
+	}
+
+	// remove "smoke" from both; c2 keeps its "regression" tag
+	if _, err := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: ids, Op: "removeTag", Value: "smoke"}, uid); err != nil {
+		t.Fatalf("removeTag: %v", err)
+	}
+	got2, _ := s.GetTestCase(ctx, c2.ID)
+	if contains(got2.Tags, "smoke") {
+		t.Fatalf("smoke should be gone: %v", got2.Tags)
+	}
+	if !contains(got2.Tags, "regression") {
+		t.Fatalf("regression should remain: %v", got2.Tags)
+	}
+}
+
+func contains(xs []string, target string) bool {
+	for _, x := range xs {
+		if x == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestBulkUpdateCases_validation(t *testing.T) {
 	s, uid := newTest(t)
 	ctx := context.Background()

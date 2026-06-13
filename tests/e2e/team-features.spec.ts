@@ -35,6 +35,7 @@ test.describe("Verify — team features", () => {
     await expect(page.getByTestId("bulk-toolbar")).toBeVisible();
     await expect(page.getByTestId("bulk-count")).toContainText("selected");
     await expect(page.getByTestId("bulk-delete")).toBeVisible();
+    await expect(page.getByTestId("bulk-add-tag")).toBeVisible();
     // The toolbar offers the metadata selects (Priority/Status/Automation…).
     await expect(page.locator('[data-testid="bulk-toolbar"] select')).not.toHaveCount(0);
   });
@@ -88,12 +89,26 @@ test.describe("Verify — team features", () => {
     const row = page.getByTestId("execution-row").first();
     await expect(row.getByTestId("step-pass-0")).toBeVisible();
 
+    // Marking the step updates the live summary immediately (client state).
     await row.getByTestId("step-pass-0").click();
-    await row.getByTestId("execution-save").click();
+    await expect(row.getByText(/Steps — 1 pass/)).toBeVisible();
 
-    // Reload: exactly the toggled row should now report one passing step.
-    await page.reload();
-    await expect(page.getByText(/Steps — 1 pass/).first()).toBeVisible();
+    // Saving persists it — poll the API rather than reload to avoid racing
+    // the server-action revalidation.
+    await row.getByTestId("execution-save").click();
+    await expect
+      .poll(
+        async () => {
+          const execs = await (
+            await request.get(`${api}/runs/${run.id}/executions`)
+          ).json();
+          return execs[0]?.stepResults?.some(
+            (s: { result: string }) => s.result === "pass",
+          );
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(true);
   });
 
   test("a case exposes its version history", async ({ page }) => {
