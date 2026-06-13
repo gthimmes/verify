@@ -206,6 +206,20 @@ type BulkCaseResult struct {
 	Updated int `json:"updated"`
 }
 
+// CaseVersionMeta is one row of a test case's edit history (no snapshot body).
+type CaseVersionMeta struct {
+	Version       int       `json:"version"`
+	ChangedByName string    `json:"changedByName"`
+	ChangedAt     time.Time `json:"changedAt"`
+}
+
+// CaseVersion is a single historical version including the frozen snapshot of
+// the case content at that version.
+type CaseVersion struct {
+	CaseVersionMeta
+	Snapshot TestCaseInput `json:"snapshot"`
+}
+
 // TestRun
 type TestRun struct {
 	ID            string     `json:"id"`
