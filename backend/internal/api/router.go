@@ -77,6 +77,7 @@ func (s *Server) Routes() http.Handler {
 
 		// test cases
 		r.Get("/projects/{projectId}/cases", s.listCases)
+		r.Get("/projects/{projectId}/cases/export.csv", s.exportCasesCSV)
 		r.Post("/projects/{projectId}/cases", s.createCase)
 		r.Get("/cases/{caseId}", s.getCase)
 		r.Put("/cases/{caseId}", s.updateCase)
@@ -90,6 +91,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/projects/{projectId}/runs", s.createRun)
 		r.Get("/runs/{runId}", s.getRun)
 		r.Get("/runs/{runId}/executions", s.listExecutions)
+		r.Get("/runs/{runId}/export.csv", s.exportRunCSV)
 		r.Patch("/runs/{runId}/status", s.setRunStatus)
 		r.Post("/runs/{runId}/clone", s.cloneRun)
 		r.Post("/runs/{runId}/rerun-failed", s.reRunFailed)

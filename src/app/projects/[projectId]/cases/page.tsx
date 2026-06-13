@@ -68,6 +68,23 @@ export default async function CasesListPage({
       sp.archived === "1",
   );
 
+  const exportQuery = new URLSearchParams();
+  Object.entries({
+    q: queryFilter,
+    type: typeFilter,
+    priority: priorityFilter,
+    status: statusFilter,
+    automation: automationFilter,
+    folder: folderFilter,
+    tag: tagFilter,
+    archived: sp.archived === "1" ? "1" : undefined,
+  }).forEach(([k, v]) => {
+    if (v) exportQuery.set(k, String(v));
+  });
+  const exportHref = `/projects/${projectId}/cases/export${
+    exportQuery.toString() ? `?${exportQuery.toString()}` : ""
+  }`;
+
   const cases = hasFilter
     ? await api.listCases(projectId, {
         archived: sp.archived === "1" ? "1" : undefined,
@@ -166,6 +183,16 @@ export default async function CasesListPage({
             >
               Reset
             </Link>
+            {hasFilter ? (
+              <a
+                href={exportHref}
+                download
+                data-testid="export-cases-csv"
+                className="text-xs text-(--muted) hover:text-(--accent)"
+              >
+                Export CSV
+              </a>
+            ) : null}
           </div>
         </form>
 
