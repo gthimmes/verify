@@ -36,6 +36,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// requestText is for non-JSON endpoints (CSV export).  Returns the raw body.
+async function requestText(path: string): Promise<string> {
+  const res = await fetch(`${v1}${path}`, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`API GET ${path}: ${res.status} ${res.statusText}`);
+  }
+  return res.text();
+}
+
 // ─── shared types (mirror domain/types.go shapes) ────────────────────────────
 
 export type ID = string;
@@ -368,6 +377,17 @@ export const api = {
       buildOverride?: string;
     },
   ) => request<void>(`/executions/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+
+  // exports (CSV)
+  exportRunCsv: (runId: ID) => requestText(`/runs/${runId}/export.csv`),
+  exportCasesCsv: (projectId: ID, params: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "" && v !== "all") qs.set(k, String(v));
+    });
+    const tail = qs.toString();
+    return requestText(`/projects/${projectId}/cases/export.csv${tail ? `?${tail}` : ""}`);
+  },
 
   // misc
   search: (q: string) =>

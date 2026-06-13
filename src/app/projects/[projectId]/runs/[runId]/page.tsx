@@ -62,6 +62,11 @@ export default async function RunDetailPage({
         actions={
           <>
             <RunStatusActions runId={run.id} projectId={projectId} status={run.status} />
+            <a href={`/projects/${projectId}/runs/${run.id}/export`} download>
+              <Button variant="outline" data-testid="export-run-csv">
+                Export CSV
+              </Button>
+            </a>
             <Link href={`/projects/${projectId}/runs/${run.id}/execute`}>
               <Button data-testid="execute-cta">Execute tests</Button>
             </Link>
