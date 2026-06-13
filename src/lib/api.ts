@@ -338,6 +338,14 @@ export const api = {
   deleteCase: (id: ID) => request<void>(`/cases/${id}`, { method: "DELETE" }),
   restoreCase: (id: ID) => request<void>(`/cases/${id}/restore`, { method: "POST" }),
   duplicateCase: (id: ID) => request<TestCase>(`/cases/${id}/duplicate`, { method: "POST" }),
+  bulkUpdateCases: (
+    projectId: ID,
+    body: { caseIds: ID[]; op: string; value?: string },
+  ) =>
+    request<{ updated: number }>(`/projects/${projectId}/cases/bulk`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // runs
   listRuns: (projectId: ID) => request<TestRun[]>(`/projects/${projectId}/runs`),

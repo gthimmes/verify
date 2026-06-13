@@ -283,6 +283,20 @@ func (s *Server) restoreCase(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
+func (s *Server) bulkUpdateCases(w http.ResponseWriter, r *http.Request) {
+	var in domain.BulkCaseRequest
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	n, err := s.Store.BulkUpdateCases(r.Context(), in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, domain.BulkCaseResult{Updated: n})
+}
+
 func (s *Server) duplicateCase(w http.ResponseWriter, r *http.Request) {
 	c, err := s.Store.DuplicateTestCase(r.Context(), chi.URLParam(r, "caseId"), currentUserID(r))
 	if err != nil {

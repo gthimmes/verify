@@ -206,6 +206,38 @@ export async function restoreTestCase(formData: FormData) {
   revalidatePath(`/projects/${projectId}/cases`);
 }
 
+const BulkBody = z.object({
+  projectId: z.string().min(1),
+  caseIds: z.array(z.string().min(1)).min(1, "Select at least one case").max(1000),
+  op: z.enum(["priority", "status", "automation", "move", "delete", "restore"]),
+  value: z.string().optional(),
+});
+
+export type BulkActionState = {
+  ok: boolean;
+  updated?: number;
+  message?: string;
+};
+
+export async function bulkUpdateCases(
+  input: z.input<typeof BulkBody>,
+): Promise<BulkActionState> {
+  const parsed = BulkBody.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const { projectId, caseIds, op, value } = parsed.data;
+  let res;
+  try {
+    res = await api.bulkUpdateCases(projectId, { caseIds, op, value });
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}/cases`);
+  return { ok: true, updated: res.updated };
+}
+
 export async function duplicateTestCase(formData: FormData) {
   const id = String(formData.get("id") || "");
   if (!id) return;

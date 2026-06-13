@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { Badge, automationTone, priorityTone } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { Input, Select } from "@/components/ui/Input";
 import { FolderTree } from "@/components/projects/FolderTree";
+import { CasesBulkTable } from "@/components/testcases/CasesBulkTable";
 
 export const dynamic = "force-dynamic";
 
@@ -214,83 +215,12 @@ export default async function CasesListPage({
             No test cases match your filter.
           </div>
         ) : (
-          <div className="overflow-x-auto" data-testid="cases-table">
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-(--border) bg-(--bg) text-left">
-                <tr>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">ID</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Title</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Feature</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Priority</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Type</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Status</th>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Automation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cases.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-(--border) hover:bg-(--accent-soft)"
-                    data-testid="case-row"
-                    data-case-id={c.publicId}
-                  >
-                    <td className="px-3 py-2 font-mono text-xs">
-                      <Link
-                        href={`/projects/${projectId}/cases/${c.id}`}
-                        className="hover:text-(--accent)"
-                      >
-                        {c.publicId}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Link
-                        href={`/projects/${projectId}/cases/${c.id}`}
-                        className="font-medium text-(--fg) hover:text-(--accent)"
-                      >
-                        {c.title}
-                      </Link>
-                      {c.dataRowCount > 0 ? (
-                        <span className="ml-2 inline-flex items-center text-[11px] text-(--muted)">
-                          ({c.dataRowCount} rows)
-                        </span>
-                      ) : null}
-                      {c.tags.length > 0 ? (
-                        <div className="mt-0.5 flex flex-wrap gap-1">
-                          {c.tags.map((t) => (
-                            <Badge key={t} tone="muted">
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-(--muted)">
-                      {c.areaName} › {c.featureName}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge tone={priorityTone(c.priority)}>{c.priority}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs">{c.type}</td>
-                    <td className="px-3 py-2 text-xs">
-                      <Badge tone={c.status === "deprecated" ? "muted" : "default"}>
-                        {c.status}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge tone={automationTone(c.automationStatus)}>
-                        {c.automationStatus === "full"
-                          ? "automated"
-                          : c.automationStatus === "partial"
-                            ? "partial"
-                            : "manual"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CasesBulkTable
+            projectId={projectId}
+            cases={cases}
+            folders={folders}
+            archived={sp.archived === "1"}
+          />
         )}
       </Card>
       </PageContainer>
