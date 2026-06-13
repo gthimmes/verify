@@ -209,7 +209,16 @@ export async function restoreTestCase(formData: FormData) {
 const BulkBody = z.object({
   projectId: z.string().min(1),
   caseIds: z.array(z.string().min(1)).min(1, "Select at least one case").max(1000),
-  op: z.enum(["priority", "status", "automation", "move", "delete", "restore"]),
+  op: z.enum([
+    "priority",
+    "status",
+    "automation",
+    "move",
+    "delete",
+    "restore",
+    "addTag",
+    "removeTag",
+  ]),
   value: z.string().optional(),
 });
 

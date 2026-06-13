@@ -44,6 +44,21 @@ func TestBulkUpdateCases_endpoint(t *testing.T) {
 		t.Fatalf("expected 2 critical cases, got %d", len(cases))
 	}
 
+	// add a tag to both, then verify it shows up on the list rows
+	var tagRes map[string]any
+	res = do(t, "POST", base+"/projects/"+pid+"/cases/bulk", map[string]any{
+		"caseIds": []string{id1, id2}, "op": "addTag", "value": "triage",
+	}, &tagRes)
+	expectStatus(t, res, http.StatusOK)
+	if tagRes["updated"].(float64) != 2 {
+		t.Fatalf("addTag updated: %v", tagRes["updated"])
+	}
+	var tagged []map[string]any
+	do(t, "GET", base+"/projects/"+pid+"/cases?tag=triage", nil, &tagged)
+	if len(tagged) != 2 {
+		t.Fatalf("expected 2 cases tagged triage, got %d", len(tagged))
+	}
+
 	// invalid op → 400
 	res = do(t, "POST", base+"/projects/"+pid+"/cases/bulk", map[string]any{
 		"caseIds": []string{id1}, "op": "nope",

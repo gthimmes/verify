@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { FolderNode, TestCaseLite } from "@/lib/api";
 import { Badge, automationTone, priorityTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { bulkUpdateCases } from "@/app/actions/testCases";
 
 type FlatFolder = { id: string; label: string };
@@ -34,6 +34,7 @@ export function CasesBulkTable({
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [pending, startTransition] = React.useTransition();
   const [message, setMessage] = React.useState<string | null>(null);
+  const [tagInput, setTagInput] = React.useState("");
   const flatFolders = React.useMemo(() => flattenFolders(folders), [folders]);
 
   const allOnPage = cases.map((c) => c.id);
@@ -52,7 +53,15 @@ export function CasesBulkTable({
     setSelected(allSelected ? new Set() : new Set(allOnPage));
   }
 
-  type BulkOp = "priority" | "status" | "automation" | "move" | "delete" | "restore";
+  type BulkOp =
+    | "priority"
+    | "status"
+    | "automation"
+    | "move"
+    | "delete"
+    | "restore"
+    | "addTag"
+    | "removeTag";
 
   function run(op: BulkOp, value?: string) {
     const caseIds = [...selected];
@@ -98,6 +107,31 @@ export function CasesBulkTable({
             <BulkSelect label="Move to…" disabled={pending} onPick={(v) => run("move", v)}
               options={flatFolders.map((f) => [f.id, f.label] as [string, string])} />
           ) : null}
+          <span className="mx-1 h-4 w-px bg-(--border)" />
+          <Input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            placeholder="tag"
+            className="h-8 w-24 text-xs"
+            data-testid="bulk-tag-input"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || !tagInput.trim()}
+            onClick={() => run("addTag", tagInput.trim())}
+            data-testid="bulk-add-tag"
+          >
+            +tag
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || !tagInput.trim()}
+            onClick={() => run("removeTag", tagInput.trim())}
+          >
+            −tag
+          </Button>
           <span className="mx-1 h-4 w-px bg-(--border)" />
           {archived ? (
             <Button size="sm" variant="outline" disabled={pending} onClick={() => run("restore")}>
