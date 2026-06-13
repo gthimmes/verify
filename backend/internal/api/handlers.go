@@ -412,6 +412,41 @@ func (s *Server) recordExecution(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
+// ─── saved filters ───────────────────────────────────────────────────────────
+
+func (s *Server) listSavedFilters(w http.ResponseWriter, r *http.Request) {
+	scope := r.URL.Query().Get("scope")
+	filters, err := s.Store.ListSavedFilters(r.Context(), chi.URLParam(r, "projectId"), scope, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, filters)
+}
+
+func (s *Server) createSavedFilter(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreateSavedFilterInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	in.ProjectID = chi.URLParam(r, "projectId")
+	f, err := s.Store.CreateSavedFilter(r.Context(), in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 201, f)
+}
+
+func (s *Server) deleteSavedFilter(w http.ResponseWriter, r *http.Request) {
+	if err := s.Store.DeleteSavedFilter(r.Context(), chi.URLParam(r, "filterId"), currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
 // ─── reports + audit + search ────────────────────────────────────────────────
 
 func (s *Server) projectReport(w http.ResponseWriter, r *http.Request) {

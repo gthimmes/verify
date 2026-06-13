@@ -20,6 +20,7 @@ var expectedTables = []string{
 	"project_members",
 	"projects",
 	"run_snapshot_cases",
+	"saved_filters",
 	"schema_migrations",
 	"tags",
 	"test_case_data_rows",
