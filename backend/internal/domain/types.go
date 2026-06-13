@@ -191,6 +191,21 @@ type TestCaseInput struct {
 	DataRows            []TestCaseDataRow `json:"dataRows"`
 }
 
+// BulkCaseRequest applies one metadata change to many cases at once.
+// Op is one of: "priority", "status", "automation", "move", "delete",
+// "restore".  Value carries the target enum value (priority/status/automation)
+// or the destination folder id (move); it is ignored for delete/restore.
+type BulkCaseRequest struct {
+	CaseIDs []string `json:"caseIds"`
+	Op      string   `json:"op"`
+	Value   string   `json:"value"`
+}
+
+// BulkCaseResult reports how many cases were affected.
+type BulkCaseResult struct {
+	Updated int `json:"updated"`
+}
+
 // TestRun
 type TestRun struct {
 	ID            string     `json:"id"`

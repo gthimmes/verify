@@ -821,6 +821,96 @@ func (s *Store) DuplicateTestCase(ctx context.Context, srcID, userID string) (*d
 	return s.CreateTestCase(ctx, in, userID)
 }
 
+// BulkUpdateCases applies a single metadata change (priority, status,
+// automation status, folder move, or soft delete/restore) to many cases in
+// one transaction and writes one audit row.  These are lightweight metadata
+// edits: unlike UpdateTestCase they do not bump the case version or write a
+// test_case_versions snapshot, since no step/parameter content changes.
+// Returns the number of rows affected.
+func (s *Store) BulkUpdateCases(ctx context.Context, req domain.BulkCaseRequest, userID string) (int, error) {
+	if len(req.CaseIDs) == 0 {
+		return 0, fmt.Errorf("no cases selected")
+	}
+	if len(req.CaseIDs) > 1000 {
+		return 0, fmt.Errorf("too many cases in one request (max 1000)")
+	}
+
+	var setClause string
+	var value any
+	switch req.Op {
+	case "priority":
+		if !isOneOf(req.Value, "critical", "high", "medium", "low") {
+			return 0, fmt.Errorf("invalid priority %q", req.Value)
+		}
+		setClause, value = "priority = $1", req.Value
+	case "status":
+		if !isOneOf(req.Value, "draft", "active", "deprecated") {
+			return 0, fmt.Errorf("invalid status %q", req.Value)
+		}
+		setClause, value = "status = $1", req.Value
+	case "automation":
+		if !isOneOf(req.Value, "not_automated", "partial", "full") {
+			return 0, fmt.Errorf("invalid automation status %q", req.Value)
+		}
+		setClause, value = "automation_status = $1", req.Value
+	case "move":
+		if strings.TrimSpace(req.Value) == "" {
+			return 0, fmt.Errorf("move requires a target folder id")
+		}
+		setClause, value = "folder_id = $1", req.Value
+	case "delete":
+		setClause, value = "deleted_at = now()", nil
+	case "restore":
+		setClause, value = "deleted_at = null", nil
+	default:
+		return 0, fmt.Errorf("unknown bulk op %q", req.Op)
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	// $1 is the op value (when present); the case-id array and actor are the
+	// trailing params so the WHERE clause is stable across ops.
+	args := []any{}
+	idsPos := 1
+	if value != nil {
+		args = append(args, value)
+		idsPos = 2
+	}
+	args = append(args, req.CaseIDs, userID)
+	sql := fmt.Sprintf(
+		`update test_cases set %s, updated_at = now(), updated_by_id = $%d where id = any($%d::uuid[])`,
+		setClause, idsPos+1, idsPos)
+	tag, err := tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	affected := int(tag.RowsAffected())
+
+	// entity_id is non-null; record the first selected case as representative
+	// and keep the full op/count in the audit payload.
+	if err := writeAudit(ctx, tx, userID, "test_case.bulk_update", "TestCase", req.CaseIDs[0],
+		nil, map[string]any{"op": req.Op, "value": req.Value, "count": affected, "caseIds": req.CaseIDs}); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return affected, nil
+}
+
+func isOneOf(v string, allowed ...string) bool {
+	for _, a := range allowed {
+		if v == a {
+			return true
+		}
+	}
+	return false
+}
+
 // helpers below
 
 func insertTestCase(ctx context.Context, tx pgx.Tx, in domain.TestCaseInput, publicID string, seq int, userID string) (string, error) {

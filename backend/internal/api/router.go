@@ -84,6 +84,7 @@ func (s *Server) Routes() http.Handler {
 		r.Delete("/cases/{caseId}", s.deleteCase)
 		r.Post("/cases/{caseId}/restore", s.restoreCase)
 		r.Post("/cases/{caseId}/duplicate", s.duplicateCase)
+		r.Post("/projects/{projectId}/cases/bulk", s.bulkUpdateCases)
 
 		// runs
 		r.Get("/runs", s.listAllRuns)
