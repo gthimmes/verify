@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { CommandKLink } from "@/components/shell/CommandKLink";
+import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
+import { api } from "@/lib/api";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -13,9 +15,17 @@ export const metadata: Metadata = {
     "A lightweight system for organizing, executing, and tracking manual test cases.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // The switcher lives in the shared header, so load the (lightweight)
+  // project list here.  Guard it: a header that throws would take down every
+  // page, and the project list is non-essential chrome.
+  const projects = await api
+    .listProjects(false)
+    .then((all) => all.map((p) => ({ id: p.id, key: p.key, name: p.name })))
+    .catch(() => []);
+
   return (
     <html
       lang="en"
@@ -36,6 +46,8 @@ export default function RootLayout({
               </span>
               <span>Verify</span>
             </Link>
+            <span aria-hidden className="h-5 w-px bg-(--border)" />
+            <ProjectSwitcher projects={projects} />
             <nav className="flex items-center gap-1 text-sm">
               <Link
                 href="/?list=1"
