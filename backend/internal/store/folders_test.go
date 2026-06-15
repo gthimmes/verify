@@ -31,7 +31,7 @@ func TestEnsureFolderPath_createsAndReusesChain(t *testing.T) {
 	if _, err := s.EnsureFolderPath(ctx, p.ID, []string{"A", "B", "D"}); err != nil {
 		t.Fatal(err)
 	}
-	tree, err := s.FolderTree(ctx, p.ID)
+	tree, err := s.FolderTree(ctx, p.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestFolderTree_rollsUpCaseCounts(t *testing.T) {
 	makeCaseInFolder(t, s, p.ID, b, uid, "case 3")
 	makeCaseInFolder(t, s, p.ID, c, uid, "case 4 at top")
 
-	tree, err := s.FolderTree(ctx, p.ID)
+	tree, err := s.FolderTree(ctx, p.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,6 +23,7 @@ type SP = {
   area?: string;
   folder?: string;
   archived?: string;
+  showArchived?: string;
 };
 
 export default async function CasesListPage({
@@ -38,7 +39,7 @@ export default async function CasesListPage({
   try {
     [project, folders, summary, savedFilters] = await Promise.all([
       api.getProject(projectId),
-      api.folders(projectId),
+      api.folders(projectId, sp.showArchived === "1"),
       api.listProjects(false).then((all) => all.find((p) => p.id === projectId)),
       api.listSavedFilters(projectId).catch(() => []),
     ]);
@@ -124,6 +125,8 @@ export default async function CasesListPage({
         roots={folders}
         selectedFolderId={sp.folder ?? null}
         basePath={`/projects/${projectId}/cases`}
+        projectId={projectId}
+        showArchived={sp.showArchived === "1"}
       />
       <PageContainer className="flex-1">
         <PageHeader

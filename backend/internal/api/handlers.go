@@ -142,12 +142,85 @@ func (s *Server) reorderArea(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listFolders(w http.ResponseWriter, r *http.Request) {
-	tree, err := s.Store.FolderTree(r.Context(), chi.URLParam(r, "projectId"))
+	includeArchived := r.URL.Query().Get("includeArchived") == "1"
+	tree, err := s.Store.FolderTree(r.Context(), chi.URLParam(r, "projectId"), includeArchived)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	writeJSON(w, 200, tree)
+}
+
+func (s *Server) createFolder(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreateFolderInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	in.ProjectID = chi.URLParam(r, "projectId")
+	f, err := s.Store.CreateFolder(r.Context(), in)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 201, f)
+}
+
+func (s *Server) patchFolder(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "folderId")
+	var in struct {
+		Name     *string `json:"name"`
+		Archived *bool   `json:"archived"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if in.Name != nil {
+		if err := s.Store.RenameFolder(r.Context(), id, *in.Name, currentUserID(r)); err != nil {
+			writeErr(w, err)
+			return
+		}
+	}
+	if in.Archived != nil {
+		if err := s.Store.SetFolderArchived(r.Context(), id, *in.Archived, currentUserID(r)); err != nil {
+			writeErr(w, err)
+			return
+		}
+	}
+	writeJSON(w, 204, nil)
+}
+
+func (s *Server) moveFolder(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "folderId")
+	var in struct {
+		TargetParentID *string `json:"targetParentId"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := s.Store.MoveFolder(r.Context(), id, in.TargetParentID, currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
+func (s *Server) reorderFolder(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "folderId")
+	var in struct {
+		Direction string `json:"direction"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := s.Store.ReorderFolder(r.Context(), id, in.Direction, currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
 }
 
 func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {

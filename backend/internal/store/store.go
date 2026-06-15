@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/verify/backend/internal/domain"
@@ -1180,14 +1181,18 @@ func (s *Store) EnsureFolderPath(ctx context.Context, projectID string, segments
 // FolderTree returns the recursive tree for a project, with cumulative
 // case counts (including descendants) at every node.  Top-level nodes are
 // the slice's elements; each node's Children is recursively populated.
-func (s *Store) FolderTree(ctx context.Context, projectID string) ([]*domain.FolderNode, error) {
+func (s *Store) FolderTree(ctx context.Context, projectID string, includeArchived bool) ([]*domain.FolderNode, error) {
+	archivedCond := "and f.archived = false"
+	if includeArchived {
+		archivedCond = ""
+	}
 	rows, err := s.Pool.Query(ctx, `
 		select id::text, project_id::text, parent_id::text, name, description,
 		       display_order, archived, created_at, updated_at,
 		       (select count(*) from test_cases tc
 		           where tc.folder_id = f.id and tc.deleted_at is null) as own_count
 		from folders f
-		where f.project_id = $1
+		where f.project_id = $1 `+archivedCond+`
 		order by f.display_order, f.name`, projectID)
 	if err != nil {
 		return nil, err
@@ -1241,6 +1246,199 @@ func (s *Store) FolderTree(ctx context.Context, projectID string) ([]*domain.Fol
 		rollup(r)
 	}
 	return roots, nil
+}
+
+// RenameFolder updates a folder's name.  Returns ErrNotFound when the folder
+// doesn't exist, and a friendly error when the new name collides with a
+// sibling (the partial unique indexes enforce uniqueness under a parent).
+func (s *Store) RenameFolder(ctx context.Context, id, name, userID string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("name required")
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	ct, err := tx.Exec(ctx, `update folders set name = $1, updated_at = now() where id = $2`, name, id)
+	if err != nil {
+		return friendlyFolderErr(err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if err := writeAudit(ctx, tx, userID, "folder.update", "Folder", id, nil, map[string]any{"name": name}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// SetFolderArchived flips the archived flag on a folder *and all of its
+// descendants*.  Archiving cascades so the subtree hides/shows as a unit —
+// the tree query filters archived folders out by default, and a half-hidden
+// branch (archived parent, live children surfacing as orphans) would be
+// confusing.
+func (s *Store) SetFolderArchived(ctx context.Context, id string, archived bool, userID string) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	ct, err := tx.Exec(ctx, `
+		with recursive sub(id) as (
+			select id from folders where id = $1
+			union all
+			select f.id from folders f join sub on f.parent_id = sub.id
+		)
+		update folders set archived = $2, updated_at = now()
+		where id in (select id from sub)`, id, archived)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	action := "folder.archive"
+	if !archived {
+		action = "folder.unarchive"
+	}
+	if err := writeAudit(ctx, tx, userID, action, "Folder", id, nil, map[string]any{"affected": ct.RowsAffected()}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// MoveFolder reparents a folder.  A nil targetParentID moves it to the project
+// root.  The new parent must be in the same project and must not be the folder
+// itself or any of its descendants (which would create a cycle).  The folder is
+// placed at the end of its new sibling list.
+func (s *Store) MoveFolder(ctx context.Context, id string, targetParentID *string, userID string) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var projID string
+	if err := tx.QueryRow(ctx, `select project_id::text from folders where id = $1`, id).Scan(&projID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	if targetParentID != nil {
+		if *targetParentID == id {
+			return fmt.Errorf("cannot move a folder into itself")
+		}
+		var parentProj string
+		if err := tx.QueryRow(ctx, `select project_id::text from folders where id = $1`, *targetParentID).Scan(&parentProj); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("target folder not found")
+			}
+			return err
+		}
+		if parentProj != projID {
+			return fmt.Errorf("cannot move a folder across projects")
+		}
+		// Reject if the target is a descendant of the folder being moved.
+		var cycle bool
+		if err := tx.QueryRow(ctx, `
+			with recursive sub(id) as (
+				select id from folders where id = $1
+				union all
+				select f.id from folders f join sub on f.parent_id = sub.id
+			)
+			select exists(select 1 from sub where id = $2)`, id, *targetParentID).Scan(&cycle); err != nil {
+			return err
+		}
+		if cycle {
+			return fmt.Errorf("cannot move a folder into its own subtree")
+		}
+	}
+
+	var maxOrd int
+	if targetParentID == nil {
+		_ = tx.QueryRow(ctx, `select coalesce(max(display_order), -1) from folders where project_id = $1 and parent_id is null`, projID).Scan(&maxOrd)
+	} else {
+		_ = tx.QueryRow(ctx, `select coalesce(max(display_order), -1) from folders where project_id = $1 and parent_id = $2`, projID, *targetParentID).Scan(&maxOrd)
+	}
+
+	if _, err := tx.Exec(ctx, `update folders set parent_id = $1, display_order = $2, updated_at = now() where id = $3`,
+		targetParentID, maxOrd+1, id); err != nil {
+		return friendlyFolderErr(err)
+	}
+	if err := writeAudit(ctx, tx, userID, "folder.move", "Folder", id, nil, map[string]any{"parentId": deref(targetParentID)}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ReorderFolder swaps a folder's display_order with the adjacent sibling in the
+// given direction ("up" or "down").  Siblings share the same parent (which may
+// be the root, i.e. parent_id is null).  A move past the end is a no-op.
+func (s *Store) ReorderFolder(ctx context.Context, id, direction, userID string) error {
+	if direction != "up" && direction != "down" {
+		return fmt.Errorf("direction must be up or down")
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var projID string
+	var parentID *string
+	var ord int
+	if err := tx.QueryRow(ctx, `select project_id::text, parent_id::text, display_order from folders where id = $1`, id).Scan(&projID, &parentID, &ord); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	op, dir := "<", "desc"
+	if direction == "down" {
+		op, dir = ">", "asc"
+	}
+	// `is not distinct from` so a NULL parent matches NULL parents.
+	var nbrID string
+	var nbrOrd int
+	err = tx.QueryRow(ctx,
+		fmt.Sprintf(`select id::text, display_order from folders
+			where project_id = $1 and parent_id is not distinct from $2 and display_order %s $3
+			order by display_order %s limit 1`, op, dir),
+		projID, parentID, ord).Scan(&nbrID, &nbrOrd)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return tx.Rollback(ctx) // already at the edge — no-op
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `update folders set display_order = $1 where id = $2`, nbrOrd, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `update folders set display_order = $1 where id = $2`, ord, nbrID); err != nil {
+		return err
+	}
+	if err := writeAudit(ctx, tx, userID, "folder.reorder", "Folder", id, nil, map[string]any{"direction": direction}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// friendlyFolderErr turns the partial-unique-index violation on folder names
+// into a message the UI can show verbatim.
+func friendlyFolderErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return fmt.Errorf("a folder with that name already exists here")
+	}
+	return err
 }
 
 // ─── runs ────────────────────────────────────────────────────────────────────

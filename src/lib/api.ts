@@ -324,8 +324,30 @@ export const api = {
   // hierarchy / areas / features
   hierarchy: (projectId: ID) =>
     request<AreaWithFeatures[]>(`/projects/${projectId}/hierarchy`),
-  folders: (projectId: ID) =>
-    request<FolderNode[]>(`/projects/${projectId}/folders`),
+  folders: (projectId: ID, includeArchived = false) =>
+    request<FolderNode[]>(
+      `/projects/${projectId}/folders${includeArchived ? "?includeArchived=1" : ""}`,
+    ),
+  createFolder: (
+    projectId: ID,
+    input: { name: string; parentId?: ID | null; description?: string },
+  ) =>
+    request<FolderNode>(`/projects/${projectId}/folders`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  patchFolder: (id: ID, body: { name?: string; archived?: boolean }) =>
+    request<void>(`/folders/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  moveFolder: (id: ID, targetParentId: ID | null) =>
+    request<void>(`/folders/${id}/move`, {
+      method: "POST",
+      body: JSON.stringify({ targetParentId }),
+    }),
+  reorderFolder: (id: ID, direction: "up" | "down") =>
+    request<void>(`/folders/${id}/reorder`, {
+      method: "POST",
+      body: JSON.stringify({ direction }),
+    }),
   listAreas: (projectId: ID) => request<Area[]>(`/projects/${projectId}/areas`),
   listFeatures: (projectId: ID) => request<Feature[]>(`/projects/${projectId}/features`),
   createArea: (projectId: ID, input: { name: string; key?: string; description?: string }) =>

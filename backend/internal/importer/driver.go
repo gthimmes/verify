@@ -106,7 +106,7 @@ func Apply(ctx context.Context, s *store.Store, plan Plan, ownerID string) (Appl
 	pid := plan.Project.ID
 
 	folderCache := map[string]string{}
-	beforeFolders, err := s.FolderTree(ctx, pid)
+	beforeFolders, err := s.FolderTree(ctx, pid, true)
 	if err != nil {
 		return res, err
 	}
@@ -135,7 +135,7 @@ func Apply(ctx context.Context, s *store.Store, plan Plan, ownerID string) (Appl
 		res.CasesCreated++
 	}
 
-	afterFolders, _ := s.FolderTree(ctx, pid)
+	afterFolders, _ := s.FolderTree(ctx, pid, true)
 	res.FoldersCreated = countFolders(afterFolders) - preExisting
 	return res, nil
 }
