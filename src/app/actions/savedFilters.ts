@@ -27,13 +27,14 @@ export async function saveFilter(
   } catch (err) {
     return { ok: false, message: (err as Error).message };
   }
-  revalidatePath(`/projects/${projectId}/cases`);
+  revalidatePath(`/projects/${projectId}/${scope}`);
   return { ok: true };
 }
 
 export async function deleteFilter(input: {
   projectId: string;
   id: string;
+  scope?: "cases" | "runs";
 }): Promise<SaveFilterState> {
   if (!input.id) return { ok: false, message: "Missing id." };
   try {
@@ -41,6 +42,6 @@ export async function deleteFilter(input: {
   } catch (err) {
     return { ok: false, message: (err as Error).message };
   }
-  revalidatePath(`/projects/${input.projectId}/cases`);
+  revalidatePath(`/projects/${input.projectId}/${input.scope ?? "cases"}`);
   return { ok: true };
 }

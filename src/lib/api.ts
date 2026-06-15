@@ -392,7 +392,14 @@ export const api = {
     }),
 
   // runs
-  listRuns: (projectId: ID) => request<TestRun[]>(`/projects/${projectId}/runs`),
+  listRuns: (projectId: ID, params: Record<string, string | undefined> = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "" && v !== "all") qs.set(k, String(v));
+    });
+    const tail = qs.toString();
+    return request<TestRun[]>(`/projects/${projectId}/runs${tail ? `?${tail}` : ""}`);
+  },
   listActiveRuns: () => request<TestRun[]>(`/runs?active=1`),
   createRun: (
     projectId: ID,

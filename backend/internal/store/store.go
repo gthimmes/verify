@@ -1443,15 +1443,42 @@ func friendlyFolderErr(err error) error {
 
 // ─── runs ────────────────────────────────────────────────────────────────────
 
+// RunListFilter narrows the runs list.  An empty field means "no filter on
+// this dimension".
+type RunListFilter struct {
+	ProjectID  string
+	OnlyActive bool
+	Status     string // exact status match (draft/in_progress/blocked/completed/aborted)
+	Query      string // case-insensitive match across name/build/milestone/environment
+}
+
+// ListRuns lists runs for a project (or all projects when projectID is "").
+// Retained for callers that only need the active toggle.
 func (s *Store) ListRuns(ctx context.Context, projectID string, onlyActive bool) ([]domain.TestRun, error) {
+	return s.ListRunsFiltered(ctx, RunListFilter{ProjectID: projectID, OnlyActive: onlyActive})
+}
+
+// ListRunsFiltered lists runs with optional status / text filters applied.
+func (s *Store) ListRunsFiltered(ctx context.Context, f RunListFilter) ([]domain.TestRun, error) {
 	args := []any{}
 	cond := []string{}
-	if projectID != "" {
-		args = append(args, projectID)
-		cond = append(cond, fmt.Sprintf("r.project_id = $%d", len(args)))
+	add := func(v any) string {
+		args = append(args, v)
+		return fmt.Sprintf("$%d", len(args))
 	}
-	if onlyActive {
+	if f.ProjectID != "" {
+		cond = append(cond, "r.project_id = "+add(f.ProjectID))
+	}
+	if f.OnlyActive {
 		cond = append(cond, "r.status in ('draft','in_progress','blocked')")
+	}
+	if f.Status != "" {
+		cond = append(cond, "r.status = "+add(f.Status))
+	}
+	if q := strings.TrimSpace(f.Query); q != "" {
+		p := add("%" + q + "%")
+		cond = append(cond, "(r.name ilike "+p+" or coalesce(r.build,'') ilike "+p+
+			" or coalesce(r.milestone,'') ilike "+p+" or coalesce(r.environment,'') ilike "+p+")")
 	}
 	where := ""
 	if len(cond) > 0 {

@@ -42,3 +42,32 @@ func TestSavedFilters_endpoint(t *testing.T) {
 		t.Fatalf("expected 0 after delete, got %d", len(list))
 	}
 }
+
+func TestSavedFilters_runsScopeIsolated(t *testing.T) {
+	srv, _ := newServer(t)
+	base := srv.URL + "/api/v1"
+
+	var p map[string]any
+	do(t, "POST", base+"/projects", map[string]string{"name": "Scope Co", "key": "SCO"}, &p)
+	pid := p["id"].(string)
+
+	// Save a filter scoped to runs.
+	res := do(t, "POST", base+"/projects/"+pid+"/saved-filters", map[string]any{
+		"name": "In progress", "scope": "runs", "query": map[string]string{"status": "in_progress"},
+	}, nil)
+	expectStatus(t, res, http.StatusCreated)
+
+	// It shows up under scope=runs…
+	var runsList []map[string]any
+	do(t, "GET", base+"/projects/"+pid+"/saved-filters?scope=runs", nil, &runsList)
+	if len(runsList) != 1 || runsList[0]["scope"] != "runs" {
+		t.Fatalf("expected 1 runs-scoped filter, got %v", runsList)
+	}
+
+	// …but not under the default (cases) scope.
+	var casesList []map[string]any
+	do(t, "GET", base+"/projects/"+pid+"/saved-filters", nil, &casesList)
+	if len(casesList) != 0 {
+		t.Fatalf("expected 0 cases-scoped filters, got %d", len(casesList))
+	}
+}

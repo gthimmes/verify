@@ -4,23 +4,44 @@ import { api } from "@/lib/api";
 import { PageContainer, PageHeader, EmptyState } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
 import { Badge, runStatusTone } from "@/components/ui/Badge";
+import { SavedFiltersBar } from "@/components/testcases/SavedFiltersBar";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+type SP = { q?: string; status?: string };
+
 export default async function RunsListPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<SP>;
 }) {
   const { projectId } = await params;
-  let project, runs;
+  const sp = await searchParams;
+  const statusFilter = sp.status && sp.status !== "all" ? sp.status : undefined;
+  const queryFilter = sp.q && sp.q.trim() !== "" ? sp.q.trim() : undefined;
+  const hasFilter = Boolean(statusFilter || queryFilter);
+
+  let project, runs, savedFilters;
   try {
-    [project, runs] = await Promise.all([api.getProject(projectId), api.listRuns(projectId)]);
+    [project, runs, savedFilters] = await Promise.all([
+      api.getProject(projectId),
+      api.listRuns(projectId, { status: statusFilter, q: queryFilter }),
+      api.listSavedFilters(projectId, "runs").catch(() => []),
+    ]);
   } catch {
     return notFound();
   }
+
+  // currentQuery mirrors the searchParams so a saved filter reloads the exact
+  // same view. Only set keys are included.
+  const currentQuery: Record<string, string> = {};
+  if (queryFilter) currentQuery.q = queryFilter;
+  if (statusFilter) currentQuery.status = statusFilter;
 
   return (
     <PageContainer>
@@ -39,18 +60,69 @@ export default async function RunsListPage({
         }
       />
 
-      {runs.length === 0 ? (
-        <EmptyState
-          title="No runs yet"
-          description="Create a run to start executing your manual test cases."
-          action={
-            <Link href={`/projects/${projectId}/runs/new`}>
-              <Button>+ New run</Button>
+      <Card>
+        <form
+          method="get"
+          className="grid grid-cols-2 gap-3 border-b border-(--border) p-4 lg:grid-cols-6"
+        >
+          <Input
+            type="search"
+            name="q"
+            defaultValue={sp.q ?? ""}
+            placeholder="Search by name, build, milestone, env…"
+            className="lg:col-span-3"
+            data-testid="runs-search"
+          />
+          <Select name="status" defaultValue={sp.status ?? "all"} data-testid="runs-status-filter">
+            <option value="all">Any status</option>
+            <option value="draft">Draft</option>
+            <option value="in_progress">In progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="completed">Completed</option>
+            <option value="aborted">Aborted</option>
+          </Select>
+          <div className="flex items-center gap-2 lg:col-span-2">
+            <Button type="submit" variant="outline" size="sm">
+              Apply
+            </Button>
+            <Link
+              href={`/projects/${projectId}/runs`}
+              className="text-xs text-(--muted) hover:text-(--accent)"
+            >
+              Reset
             </Link>
-          }
+          </div>
+        </form>
+
+        <SavedFiltersBar
+          projectId={projectId}
+          filters={savedFilters}
+          currentQuery={currentQuery}
+          canSave={hasFilter}
+          scope="runs"
         />
-      ) : (
-        <Card>
+
+        {runs.length === 0 ? (
+          <EmptyState
+            title={hasFilter ? "No runs match these filters" : "No runs yet"}
+            description={
+              hasFilter
+                ? "Try adjusting or resetting the filters above."
+                : "Create a run to start executing your manual test cases."
+            }
+            action={
+              hasFilter ? (
+                <Link href={`/projects/${projectId}/runs`}>
+                  <Button variant="outline">Reset filters</Button>
+                </Link>
+              ) : (
+                <Link href={`/projects/${projectId}/runs/new`}>
+                  <Button>+ New run</Button>
+                </Link>
+              )
+            }
+          />
+        ) : (
           <table className="min-w-full text-sm" data-testid="runs-table">
             <thead className="border-b border-(--border) bg-(--bg) text-left">
               <tr>
@@ -110,8 +182,8 @@ export default async function RunsListPage({
               })}
             </tbody>
           </table>
-        </Card>
-      )}
+        )}
+      </Card>
     </PageContainer>
   );
 }

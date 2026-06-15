@@ -211,6 +211,44 @@ func TestListRuns_filterActiveOnly(t *testing.T) {
 	_ = testutil.AuditCount(t, testutil.Pool(t), "run.create") // touch to make sure no panic
 }
 
+func TestListRunsFiltered_statusAndQuery(t *testing.T) {
+	s, uid := newTest(t)
+	pid, caseIDs := runFixture(t, s, uid)
+	ctx := context.Background()
+
+	smoke, _ := s.CreateRun(ctx, domain.CreateRunInput{
+		ProjectID: pid, Name: "Smoke nightly", Build: "build-42", CaseIDs: caseIDs,
+	}, uid)
+	reg, _ := s.CreateRun(ctx, domain.CreateRunInput{
+		ProjectID: pid, Name: "Regression sweep", CaseIDs: caseIDs,
+	}, uid)
+	_ = s.SetRunStatus(ctx, reg.ID, "completed", "")
+
+	// Status filter returns only the completed run.
+	completed, _ := s.ListRunsFiltered(ctx, store.RunListFilter{ProjectID: pid, Status: "completed"})
+	if len(completed) != 1 || completed[0].ID != reg.ID {
+		t.Fatalf("status filter: expected only the completed run, got %d", len(completed))
+	}
+
+	// Text query matches name (case-insensitive).
+	byName, _ := s.ListRunsFiltered(ctx, store.RunListFilter{ProjectID: pid, Query: "smoke"})
+	if len(byName) != 1 || byName[0].ID != smoke.ID {
+		t.Fatalf("name query: expected the smoke run, got %d", len(byName))
+	}
+
+	// Text query also matches build.
+	byBuild, _ := s.ListRunsFiltered(ctx, store.RunListFilter{ProjectID: pid, Query: "build-42"})
+	if len(byBuild) != 1 || byBuild[0].ID != smoke.ID {
+		t.Fatalf("build query: expected the smoke run, got %d", len(byBuild))
+	}
+
+	// No-filter still returns both.
+	all, _ := s.ListRunsFiltered(ctx, store.RunListFilter{ProjectID: pid})
+	if len(all) != 2 {
+		t.Fatalf("unfiltered: expected 2 runs, got %d", len(all))
+	}
+}
+
 func TestCreateRun_writesAuditLog(t *testing.T) {
 	s, uid := newTest(t)
 	pid, caseIDs := runFixture(t, s, uid)

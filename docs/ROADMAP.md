@@ -17,7 +17,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 - Type-enum extensions (`acceptance`, `compatibility`, `other`) with a contract test.
 - **CSV export** of run results and the filtered case list (synchronous Go endpoints + Next route handlers + download affordances).
 - **Bulk operations** on cases: set priority/status/automation, move to folder, soft delete/restore — applied to up to 1000 cases in one audited transaction, driven by a select-all toolbar on `/cases`.
-- **Saved filters** (`saved_filters` table): name + reload the current `/cases` filter set; mark `shared` for project-wide visibility; owner-only delete.
+- **Saved filters** (`saved_filters` table, `scope`-aware): name + reload the current filter set on `/cases` and `/runs`; mark `shared` for project-wide visibility; owner-only delete.
 - **Version history viewer**: surfaces `test_case_versions` as a per-case timeline with a field-level diff against each predecessor.
 - **Step-level results**: per-step pass/fail checklist during execution, persisted in `test_executions.step_results_json`.
 - **Folder management**: rename, create, move (cycle-checked), reorder, and cascade archive/unarchive folders from the cases sidebar.
@@ -30,7 +30,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 4. **Templates UI.** Migration for `test_case_templates` + an `/admin/templates` CRUD + a template picker on the new-case form.
 5. **Notifications.** Email + in-app for assignment, run completion, defect linked to your case, comment mention. Needs the v2 job runner.
 6. **CSV / PDF export.** ✅ CSV shipped (per-run results + filtered case list, synchronous Go endpoints). PDF still pending — queue it through the v2 job runner.
-7. **Saved filters.** ✅ Shipped for `/cases` (`saved_filters` table + endpoints + save/load UI, with a `shared` flag). Still to do: extend to `/runs`.
+7. **Saved filters.** ✅ Shipped for `/cases` and `/runs` (`saved_filters` table is `scope`-aware; the runs list gained status + text filters and the same save/load chip bar, with the `shared` flag).
 8. **Step-level results.** ✅ Shipped: per-step pass/fail toggles on the run-execution row, persisted to `test_executions.step_results_json` and surfaced as a "N pass, M fail" summary.
 9. **Bulk operations.** ✅ Shipped: bulk priority/status/automation edit, move between folders, soft delete/restore, and add/remove tag on `/cases`.
 10. **Folder management.** ✅ Rename, create (root + subfolder), archive/unarchive (cascades to the subtree; hidden by default with a "Show archived" toggle), move to another parent (cycle-checked) and reorder among siblings — all from the cases sidebar "⋯" menu, audited in the Go store. Still to do: true drag-and-drop reordering (the current UI uses up/down + move-to-parent).

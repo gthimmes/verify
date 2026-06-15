@@ -415,7 +415,12 @@ func (s *Server) listAllRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
-	runs, err := s.Store.ListRuns(r.Context(), chi.URLParam(r, "projectId"), false)
+	q := r.URL.Query()
+	runs, err := s.Store.ListRunsFiltered(r.Context(), store.RunListFilter{
+		ProjectID: chi.URLParam(r, "projectId"),
+		Status:    q.Get("status"),
+		Query:     q.Get("q"),
+	})
 	if err != nil {
 		writeErr(w, err)
 		return

@@ -13,11 +13,13 @@ export function SavedFiltersBar({
   filters,
   currentQuery,
   canSave,
+  scope = "cases",
 }: {
   projectId: string;
   filters: SavedFilter[];
   currentQuery: Record<string, string>;
   canSave: boolean;
+  scope?: "cases" | "runs";
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -28,13 +30,13 @@ export function SavedFiltersBar({
 
   function hrefFor(query: Record<string, string>) {
     const qs = new URLSearchParams(query).toString();
-    return `/projects/${projectId}/cases${qs ? `?${qs}` : ""}`;
+    return `/projects/${projectId}/${scope}${qs ? `?${qs}` : ""}`;
   }
 
   function onSave() {
     setError(null);
     startTransition(async () => {
-      const res = await saveFilter({ projectId, name, query: currentQuery, shared });
+      const res = await saveFilter({ projectId, name, scope, query: currentQuery, shared });
       if (res.ok) {
         setOpen(false);
         setName("");
@@ -48,7 +50,7 @@ export function SavedFiltersBar({
 
   function onDelete(id: string) {
     startTransition(async () => {
-      await deleteFilter({ projectId, id });
+      await deleteFilter({ projectId, id, scope });
       router.refresh();
     });
   }
