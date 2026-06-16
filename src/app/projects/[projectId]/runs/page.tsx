@@ -202,11 +202,11 @@ function ProgressBar({
   total: number;
 }) {
   return (
-    <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
+    <div className="flex h-2 overflow-hidden rounded-full bg-(--border)">
       <div className="bg-(--success)" style={{ width: `${(pass / total) * 100}%` }} />
       <div className="bg-(--danger)" style={{ width: `${(fail / total) * 100}%` }} />
       <div className="bg-(--warn)" style={{ width: `${(blocked / total) * 100}%` }} />
-      <div className="bg-slate-300" style={{ width: `${(skipped / total) * 100}%` }} />
+      <div className="bg-(--muted-2)" style={{ width: `${(skipped / total) * 100}%` }} />
     </div>
   );
 }

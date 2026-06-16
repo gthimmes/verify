@@ -169,7 +169,7 @@ function FilterLink({
       className={
         active
           ? "rounded-md bg-(--accent) px-3 py-1.5 text-xs font-medium text-white"
-          : "rounded-md border border-(--border) bg-white px-3 py-1.5 text-xs text-(--muted) hover:border-(--accent) hover:text-(--accent)"
+          : "rounded-md border border-(--border) bg-(--surface) px-3 py-1.5 text-xs text-(--muted) hover:border-(--accent) hover:text-(--accent)"
       }
     >
       {label}

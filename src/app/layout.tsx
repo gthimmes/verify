@@ -4,10 +4,15 @@ import Link from "next/link";
 import "./globals.css";
 import { CommandKLink } from "@/components/shell/CommandKLink";
 import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
+import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { api } from "@/lib/api";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+
+// Runs before paint so the stored theme is applied with no flash of the wrong
+// palette. Defaults to following the OS when no explicit choice is stored.
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "Verify — Test Case Management",
@@ -30,8 +35,10 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <header className="border-b border-(--border) bg-(--surface)">
           <div className="mx-auto max-w-[1400px] flex items-center gap-6 px-6 py-3">
             <Link
@@ -70,6 +77,7 @@ export default async function RootLayout({
             </nav>
             <div className="ml-auto flex items-center gap-3">
               <CommandKLink />
+              <ThemeToggle />
               <div
                 className="flex items-center gap-2 text-sm text-(--muted)"
                 aria-label="current user"

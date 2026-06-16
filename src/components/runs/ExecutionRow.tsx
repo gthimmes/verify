@@ -287,12 +287,12 @@ function ResultButton({
         ? "border-(--danger) text-(--danger) hover:bg-(--danger-soft)"
         : tone === "warn"
           ? "border-(--warn) text-(--warn) hover:bg-(--warn-soft)"
-          : "border-(--border) text-(--muted) hover:bg-slate-100";
+          : "border-(--border) text-(--muted) hover:bg-(--border)";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`h-7 rounded-md border bg-white px-2.5 text-xs font-medium ${cls}`}
+      className={`h-7 rounded-md border bg-(--surface) px-2.5 text-xs font-medium ${cls}`}
       data-testid={`result-${tone === "muted" ? "skip" : tone === "success" ? "pass" : tone === "danger" ? "fail" : "block"}`}
     >
       {children}

@@ -51,7 +51,7 @@ export function ProjectSwitcher({ projects }: { projects: SwitcherProject[] }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex items-center gap-2 rounded-md border border-(--border) bg-white px-2.5 py-1.5 text-sm hover:border-(--accent) hover:bg-(--accent-soft)"
+        className="flex items-center gap-2 rounded-md border border-(--border) bg-(--surface) px-2.5 py-1.5 text-sm hover:border-(--accent) hover:bg-(--accent-soft)"
         data-testid="project-switcher"
       >
         {active ? (
@@ -85,7 +85,7 @@ export function ProjectSwitcher({ projects }: { projects: SwitcherProject[] }) {
 
       {open ? (
         <div
-          className="absolute left-0 z-20 mt-1 w-72 rounded-md border border-(--border) bg-white p-1 shadow-lg"
+          className="absolute left-0 z-20 mt-1 w-72 rounded-md border border-(--border) bg-(--surface) p-1 shadow-lg"
           role="listbox"
         >
           <input

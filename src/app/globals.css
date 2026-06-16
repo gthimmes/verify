@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --bg: #f7f7f9;
   --surface: #ffffff;
   --border: #e5e7eb;
@@ -19,6 +20,31 @@
   --warn-soft: #fef3c7;
   --info: #0891b2;
   --info-soft: #cffafe;
+}
+
+/* Dark theme — applied when <html class="dark"> (set by the no-flash script
+   in the layout before paint, toggled by the header ThemeToggle).  The *-soft
+   tints are translucent so they read correctly over the darker surfaces. */
+.dark {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --surface: #131c2e;
+  --border: #283449;
+  --border-strong: #3b4a63;
+  --fg: #e6edf6;
+  --muted: #93a4bd;
+  --muted-2: #6b7a90;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: rgba(129, 140, 248, 0.16);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.16);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.16);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.16);
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.16);
 }
 
 @theme inline {

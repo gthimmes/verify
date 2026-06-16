@@ -276,7 +276,7 @@ function FolderRow({
             </svg>
           </button>
           {mode === "menu" ? (
-            <div className="absolute right-0 z-10 mt-1 min-w-[170px] rounded-md border border-(--border) bg-white p-1 shadow-lg">
+            <div className="absolute right-0 z-10 mt-1 min-w-[170px] rounded-md border border-(--border) bg-(--surface) p-1 shadow-lg">
               <MenuButton
                 label="Rename"
                 testid="folder-rename"

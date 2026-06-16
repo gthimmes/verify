@@ -20,7 +20,7 @@ export function CommandKLink() {
   return (
     <Link
       href="/search"
-      className="inline-flex items-center gap-2 rounded-md border border-(--border) bg-white px-3 py-1.5 text-sm text-(--muted) hover:border-(--accent) hover:text-(--accent)"
+      className="inline-flex items-center gap-2 rounded-md border border-(--border) bg-(--surface) px-3 py-1.5 text-sm text-(--muted) hover:border-(--accent) hover:text-(--accent)"
       aria-label="search"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

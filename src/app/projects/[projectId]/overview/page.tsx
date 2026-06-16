@@ -195,7 +195,7 @@ export default async function ProjectOverviewPage({
                                   <li key={tc.id}>
                                     <Link
                                       href={`/projects/${projectId}/cases/${tc.id}`}
-                                      className="inline-flex items-center gap-1.5 rounded-md border border-(--border) bg-white px-2 py-1 text-xs hover:border-(--accent) hover:text-(--accent)"
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-(--border) bg-(--surface) px-2 py-1 text-xs hover:border-(--accent) hover:text-(--accent)"
                                     >
                                       <span className="font-mono text-(--muted)">
                                         {tc.publicId}

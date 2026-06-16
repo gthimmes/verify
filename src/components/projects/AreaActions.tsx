@@ -33,7 +33,7 @@ export function AreaActions({
         </svg>
       </button>
       {open ? (
-        <div className="absolute right-0 z-10 mt-1 min-w-[180px] rounded-md border border-(--border) bg-white p-1 shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 min-w-[180px] rounded-md border border-(--border) bg-(--surface) p-1 shadow-lg">
           <form action={reorderArea}>
             <input type="hidden" name="id" value={areaId} />
             <input type="hidden" name="projectId" value={projectId} />

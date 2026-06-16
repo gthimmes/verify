@@ -79,11 +79,11 @@ export default async function RunDetailPage({
           <Card>
             <CardHeader title="Progress" />
             <CardBody className="flex flex-col gap-4">
-              <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+              <div className="flex h-3 overflow-hidden rounded-full bg-(--border)">
                 <div className="bg-(--success)" style={{ width: `${(counts.pass / Math.max(1, counts.total)) * 100}%` }} />
                 <div className="bg-(--danger)" style={{ width: `${(counts.fail / Math.max(1, counts.total)) * 100}%` }} />
                 <div className="bg-(--warn)" style={{ width: `${(counts.blocked / Math.max(1, counts.total)) * 100}%` }} />
-                <div className="bg-slate-300" style={{ width: `${(counts.skipped / Math.max(1, counts.total)) * 100}%` }} />
+                <div className="bg-(--muted-2)" style={{ width: `${(counts.skipped / Math.max(1, counts.total)) * 100}%` }} />
               </div>
               <div className="grid grid-cols-3 gap-3 lg:grid-cols-5">
                 <Stat label="Total" value={counts.total} tone="muted" />

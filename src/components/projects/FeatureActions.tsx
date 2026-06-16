@@ -37,7 +37,7 @@ export function FeatureActions({
         </svg>
       </button>
       {open ? (
-        <div className="absolute right-0 z-10 mt-1 min-w-[200px] rounded-md border border-(--border) bg-white p-1 shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 min-w-[200px] rounded-md border border-(--border) bg-(--surface) p-1 shadow-lg">
           <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-(--muted)">
             Move to
           </div>

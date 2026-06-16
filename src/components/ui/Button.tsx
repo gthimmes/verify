@@ -10,7 +10,7 @@ const variants: Record<Variant, string> = {
   secondary:
     "bg-(--accent-soft) text-(--accent) hover:bg-(--accent)/10",
   outline:
-    "bg-white border border-(--border) text-(--fg) hover:border-(--accent-strong) hover:bg-(--accent-soft) hover:text-(--accent)",
+    "bg-(--surface) border border-(--border) text-(--fg) hover:border-(--accent-strong) hover:bg-(--accent-soft) hover:text-(--accent)",
   ghost:
     "bg-transparent text-(--fg) hover:bg-(--accent-soft) hover:text-(--accent)",
   danger:

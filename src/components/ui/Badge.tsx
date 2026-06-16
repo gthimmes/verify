@@ -10,7 +10,7 @@ const toneClass: Record<Tone, string> = {
   danger: "bg-(--danger-soft) text-(--danger)",
   warn: "bg-(--warn-soft) text-(--warn)",
   info: "bg-(--info-soft) text-(--info)",
-  muted: "bg-slate-100 text-slate-600",
+  muted: "bg-(--border) text-(--muted)",
 };
 
 export function Badge({

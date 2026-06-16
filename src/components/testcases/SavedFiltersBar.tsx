@@ -69,7 +69,7 @@ export function SavedFiltersBar({
         filters.map((f) => (
           <span
             key={f.id}
-            className="inline-flex items-center gap-1 rounded-full border border-(--border) bg-white px-2 py-0.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-full border border-(--border) bg-(--surface) px-2 py-0.5 text-xs"
             data-testid="saved-filter-chip"
           >
             <Link href={hrefFor(f.query)} className="hover:text-(--accent)">

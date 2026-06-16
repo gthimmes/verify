@@ -96,7 +96,7 @@ export default async function CaseDetailPage({
                     {tc.steps.map((s, i) => (
                       <li
                         key={s.id ?? i}
-                        className="grid grid-cols-[28px_1fr_1fr] gap-3 rounded-md border border-(--border) bg-white p-3"
+                        className="grid grid-cols-[28px_1fr_1fr] gap-3 rounded-md border border-(--border) bg-(--surface) p-3"
                       >
                         <div className="text-center font-semibold text-(--muted)">{i + 1}</div>
                         <div>
