@@ -26,6 +26,7 @@ var expectedTables = []string{
 	"tags",
 	"test_case_data_rows",
 	"test_case_params",
+	"test_case_relations",
 	"test_case_tags",
 	"test_case_versions",
 	"test_cases",

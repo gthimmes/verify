@@ -379,6 +379,39 @@ func (s *Server) getCaseVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, v)
 }
 
+func (s *Server) listRelations(w http.ResponseWriter, r *http.Request) {
+	rels, err := s.Store.ListRelations(r.Context(), chi.URLParam(r, "caseId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, rels)
+}
+
+func (s *Server) addRelation(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		TargetCaseID string `json:"targetCaseId"`
+		RelationType string `json:"relationType"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := s.Store.AddRelation(r.Context(), chi.URLParam(r, "caseId"), in.TargetCaseID, in.RelationType, currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
+func (s *Server) removeRelation(w http.ResponseWriter, r *http.Request) {
+	if err := s.Store.RemoveRelation(r.Context(), chi.URLParam(r, "caseId"), chi.URLParam(r, "otherId"), currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
 func (s *Server) bulkUpdateCases(w http.ResponseWriter, r *http.Request) {
 	var in domain.BulkCaseRequest
 	if err := decode(r, &in); err != nil {

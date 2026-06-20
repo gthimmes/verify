@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { formatDate } from "@/lib/utils";
 import { duplicateTestCase, softDeleteTestCase } from "@/app/actions/testCases";
+import { RelatedCases } from "@/components/testcases/RelatedCases";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function CaseDetailPage({
   } catch {
     return notFound();
   }
+  const relations = await api.listRelations(caseId).catch(() => []);
 
   const jiraKeys = (tc.jiraKeys ?? "")
     .split(",")
@@ -245,6 +247,20 @@ export default async function CaseDetailPage({
               </CardBody>
             </Card>
           ) : null}
+
+          <Card>
+            <CardHeader
+              title="Related cases"
+              description="See-also links to other cases in this project."
+            />
+            <CardBody>
+              <RelatedCases
+                caseId={tc.id}
+                projectId={projectId}
+                relations={relations}
+              />
+            </CardBody>
+          </Card>
 
           <Card>
             <CardHeader title="Audit" />

@@ -11,6 +11,16 @@ type User struct {
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
+// RelatedCase is a "see also" link target as shown on a case detail page.
+type RelatedCase struct {
+	ID           string `json:"id"`
+	PublicID     string `json:"publicId"`
+	Title        string `json:"title"`
+	Status       string `json:"status"`
+	Priority     string `json:"priority"`
+	RelationType string `json:"relationType"`
+}
+
 // GoogleProfile is the subset of Google's userinfo we persist on login.
 type GoogleProfile struct {
 	Sub     string `json:"sub"`

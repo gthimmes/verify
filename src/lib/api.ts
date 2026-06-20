@@ -178,6 +178,15 @@ export type TestCase = {
 
 export type TestCaseLite = TestCase & { dataRowCount: number };
 
+export type RelatedCase = {
+  id: ID;
+  publicId: string;
+  title: string;
+  status: string;
+  priority: string;
+  relationType: string;
+};
+
 export type TestCaseInput = {
   projectId?: ID;
   featureId: ID;
@@ -414,6 +423,15 @@ export const api = {
       `/projects/${projectId}/cases?folderId=${encodeURIComponent(folderId)}&limit=2500`,
     ),
   getCase: (id: ID) => request<TestCase>(`/cases/${id}`),
+  listRelations: (caseId: ID) =>
+    request<RelatedCase[]>(`/cases/${caseId}/relations`),
+  addRelation: (caseId: ID, targetCaseId: ID) =>
+    request<void>(`/cases/${caseId}/relations`, {
+      method: "POST",
+      body: JSON.stringify({ targetCaseId }),
+    }),
+  removeRelation: (caseId: ID, otherId: ID) =>
+    request<void>(`/cases/${caseId}/relations/${otherId}`, { method: "DELETE" }),
   createCase: (projectId: ID, input: TestCaseInput) =>
     request<TestCase>(`/projects/${projectId}/cases`, { method: "POST", body: JSON.stringify(input) }),
   updateCase: (id: ID, input: TestCaseInput) =>

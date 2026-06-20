@@ -125,6 +125,9 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/cases/{caseId}/duplicate", s.duplicateCase)
 		r.Get("/cases/{caseId}/versions", s.listCaseVersions)
 		r.Get("/cases/{caseId}/versions/{version}", s.getCaseVersion)
+		r.Get("/cases/{caseId}/relations", s.listRelations)
+		r.Post("/cases/{caseId}/relations", s.addRelation)
+		r.Delete("/cases/{caseId}/relations/{otherId}", s.removeRelation)
 		r.Post("/projects/{projectId}/cases/bulk", s.bulkUpdateCases)
 
 		// runs

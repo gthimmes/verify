@@ -21,6 +21,8 @@ For reference (so future roadmap items don't accidentally re-list these):
 - **Version history viewer**: surfaces `test_case_versions` as a per-case timeline with a field-level diff against each predecessor.
 - **Step-level results**: per-step pass/fail checklist during execution, persisted in `test_executions.step_results_json`.
 - **Folder management**: rename, create, move (cycle-checked), reorder, and cascade archive/unarchive folders from the cases sidebar.
+- **Case relations**: undirected "see also" links between cases in a project, managed from the case detail page.
+- **Google sign-in** (additive): OAuth via Next + Go, httpOnly session cookie, header sign-in/out; demo fallback until enforcement lands.
 
 ## v1.x — fill the gaps the spec already signed off on
 
@@ -34,7 +36,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 8. **Step-level results.** ✅ Shipped: per-step pass/fail toggles on the run-execution row, persisted to `test_executions.step_results_json` and surfaced as a "N pass, M fail" summary.
 9. **Bulk operations.** ✅ Shipped: bulk priority/status/automation edit, move between folders, soft delete/restore, and add/remove tag on `/cases`.
 10. **Folder management.** ✅ Rename, create (root + subfolder), archive/unarchive (cascades to the subtree; hidden by default with a "Show archived" toggle), move to another parent (cycle-checked) and reorder among siblings — all from the cases sidebar "⋯" menu, audited in the Go store. Still to do: true drag-and-drop reordering (the current UI uses up/down + move-to-parent).
-11. **Test case relations and version history viewer.** ✅ Version diff viewer shipped (per-case timeline + field-level diff off `test_case_versions`). Still to do: `test_case_relations` (see-also links) schema + UI.
+11. **Test case relations and version history viewer.** ✅ Version diff viewer shipped (per-case timeline + field-level diff off `test_case_versions`). ✅ `test_case_relations` shipped: undirected "see also" links (normalized-pair unique index) with a typeahead picker and unlink on the case detail page.
 12. **Drop legacy areas/features tables** after the new-case form and run-creation flow are migrated to use folders directly (currently both still pass a synthesised `feature_id` to satisfy a not-null FK).
 
 ## v1.x — testing & architecture hardening
