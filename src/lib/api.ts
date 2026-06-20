@@ -4,10 +4,24 @@
  * is a thin typed fetch wrapper that re-exports the response shapes.
  */
 
+import { cookies } from "next/headers";
+
 export const apiBase =
   process.env.VERIFY_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
 
 const v1 = `${apiBase}/api/v1`;
+
+// The web layer stores the session token in an httpOnly cookie on its own
+// origin; forward it to the Go API as a bearer token so the request resolves
+// to the signed-in user (falling back to the demo user when absent).
+async function authHeaders(): Promise<Record<string, string>> {
+  try {
+    const token = (await cookies()).get("verify_session")?.value;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${v1}${path}`;
@@ -15,6 +29,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(await authHeaders()),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -38,7 +53,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // requestText is for non-JSON endpoints (CSV export).  Returns the raw body.
 async function requestText(path: string): Promise<string> {
-  const res = await fetch(`${v1}${path}`, { cache: "no-store" });
+  const res = await fetch(`${v1}${path}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
   if (!res.ok) {
     throw new Error(`API GET ${path}: ${res.status} ${res.statusText}`);
   }
@@ -48,6 +66,14 @@ async function requestText(path: string): Promise<string> {
 // ─── shared types (mirror domain/types.go shapes) ────────────────────────────
 
 export type ID = string;
+
+export type CurrentUser = {
+  id: ID;
+  email: string;
+  name: string;
+  role: string;
+  avatarUrl?: string | null;
+};
 
 export type Project = {
   id: ID;
@@ -312,6 +338,19 @@ export type ReportPayload = {
 // ─── endpoints ───────────────────────────────────────────────────────────────
 
 export const api = {
+  // auth
+  me: () => request<CurrentUser>("/auth/me"),
+  exchangeGoogle: (body: { code: string; redirectUri: string }) =>
+    request<{ token: string; expiresAt: string; user: CurrentUser }>(
+      "/auth/google/exchange",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  logoutSession: (token: string) =>
+    request<void>("/auth/logout", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
   // projects
   listProjects: (archived = false) =>
     request<ProjectSummary[]>(`/projects${archived ? "?archived=1" : ""}`),

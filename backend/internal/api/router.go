@@ -11,31 +11,61 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/verify/backend/internal/domain"
 	"github.com/verify/backend/internal/store"
 )
 
 type Server struct {
-	Store *store.Store
+	Store  *store.Store
+	Google GoogleExchanger
 }
 
-func New(s *store.Store) *Server { return &Server{Store: s} }
+func New(s *store.Store) *Server {
+	return &Server{Store: s, Google: httpGoogleExchanger{}}
+}
 
-// userIDKey is the request-scoped current-user id.
+// request-scoped current-user keys.
 type ctxKey int
 
-const userKey ctxKey = 1
+const (
+	userKey    ctxKey = 1 // current-user id (string)
+	userObjKey ctxKey = 2 // current user (domain.User)
+)
 
+// currentUserMiddleware resolves the request's user.  A valid bearer session
+// token (forwarded by the web layer) wins; otherwise it falls back to the demo
+// user so the app and tests keep working while auth is additive.
 func (s *Server) currentUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
+
+		if token := bearerToken(r); token != "" {
+			if u, err := s.Store.UserBySession(ctx, token); err == nil {
+				next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
+				return
+			}
+			// Unknown/expired token → fall through to the demo user.
+		}
+
 		u, err := s.Store.CurrentUser(ctx)
 		if err != nil {
 			http.Error(w, "auth bootstrap failed", http.StatusInternalServerError)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u.ID)))
+		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
 	})
+}
+
+func withUser(ctx context.Context, u domain.User) context.Context {
+	ctx = context.WithValue(ctx, userKey, u.ID)
+	return context.WithValue(ctx, userObjKey, u)
+}
+
+// currentUser returns the request's resolved user.
+func currentUser(r *http.Request) (domain.User, bool) {
+	u, ok := r.Context().Value(userObjKey).(domain.User)
+	return u, ok
 }
 
 func currentUserID(r *http.Request) string {
@@ -58,6 +88,11 @@ func (s *Server) Routes() http.Handler {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]string{"ok": "ok"}) })
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// auth
+		r.Post("/auth/google/exchange", s.exchangeGoogle)
+		r.Post("/auth/logout", s.logout)
+		r.Get("/auth/me", s.me)
+
 		// projects
 		r.Get("/projects", s.listProjects)
 		r.Post("/projects", s.createProject)

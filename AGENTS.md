@@ -139,6 +139,11 @@ docker compose down
 
 # Backend
 cd backend
+# Google sign-in (optional locally): export the OAuth client before starting.
+# Without these, sign-in returns 502 and the app stays on the demo user.
+#   export GOOGLE_CLIENT_ID=...  GOOGLE_CLIENT_SECRET=...
+# The Next app also needs GOOGLE_CLIENT_ID (see .env.local.example). The
+# registered redirect URI is http://localhost:3000/api/auth/google/callback.
 go run ./cmd/server                       # API on :4000 (auto-applies migrations)
 go run ./cmd/seed                         # idempotent demo seed
 go run ./cmd/import-testiny --xlsx FILE --project-key KEY --apply

@@ -22,6 +22,7 @@ var expectedTables = []string{
 	"run_snapshot_cases",
 	"saved_filters",
 	"schema_migrations",
+	"sessions",
 	"tags",
 	"test_case_data_rows",
 	"test_case_params",

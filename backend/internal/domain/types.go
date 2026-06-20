@@ -4,10 +4,19 @@ import "time"
 
 // User
 type User struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
-	Role  string `json:"role"`
+	ID        string  `json:"id"`
+	Email     string  `json:"email"`
+	Name      string  `json:"name"`
+	Role      string  `json:"role"`
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+}
+
+// GoogleProfile is the subset of Google's userinfo we persist on login.
+type GoogleProfile struct {
+	Sub     string `json:"sub"`
+	Email   string `json:"email"`
+	Name    string `json:"name"`
+	Picture string `json:"picture"`
 }
 
 // Project

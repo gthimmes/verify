@@ -24,7 +24,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 
 ## v1.x — fill the gaps the spec already signed off on
 
-1. **Real authentication.** Today `src/lib/auth.ts` is a UI stub and the Go API auto-bootstraps a `demo@verify.local` user on every request. Next: SSO via SAML or OIDC, with the scoped per-project roles already supported by the `project_members.role` column.
+1. **Real authentication.** 🟡 Google OIDC sign-in shipped, *additive*: Next handles the OAuth redirect, the Go API exchanges the code (client secret server-side), upserts the user, and mints an opaque session stored in an httpOnly cookie that `src/lib/api.ts` forwards as a bearer token. The header shows the signed-in user + sign-out. Sessions live in the `sessions` table; `users` gained `google_sub`/`avatar_url`. Requires `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (Go) and `GOOGLE_CLIENT_ID` (Next). Still to do: **enforce** (remove the demo-user fallback in `currentUserMiddleware` and gate routes), wire per-project roles via `project_members.role`, and add other providers (SAML/OIDC) as needed.
 2. **Imported authors.** The Testiny importer currently discards the `Owner`/`Created by`/`Modified by` strings. When auth ships, add a flag that upserts users by name (or by email if available) so attribution survives the import.
 3. **Attachments UI.** Migration for the `attachments` table + an upload widget on case detail and execution rows.
 4. **Templates UI.** Migration for `test_case_templates` + an `/admin/templates` CRUD + a template picker on the new-case form.
