@@ -144,6 +144,15 @@ cd backend
 #   export GOOGLE_CLIENT_ID=...  GOOGLE_CLIENT_SECRET=...
 # The Next app also needs GOOGLE_CLIENT_ID (see .env.local.example). The
 # registered redirect URI is http://localhost:3000/api/auth/google/callback.
+#
+# Auth enforcement (default OFF). With AUTH_ENFORCED unset the API runs
+# additively: unauthenticated requests fall back to the demo user and all
+# per-project role checks are no-ops (dev + e2e rely on this). Set
+# AUTH_ENFORCED=1 to turn on hard auth: 401 for unauthenticated requests
+# (except /health and /auth/google/exchange), and per-project roles from
+# project_members.role (admin > editor > viewer; org users.role=admin bypasses).
+# Only flip it on once a real Google login works end-to-end.
+#   export AUTH_ENFORCED=1
 go run ./cmd/server                       # API on :4000 (auto-applies migrations)
 go run ./cmd/seed                         # idempotent demo seed
 go run ./cmd/import-testiny --xlsx FILE --project-key KEY --apply

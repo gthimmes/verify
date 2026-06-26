@@ -19,6 +19,9 @@ import (
 
 func (s *Server) exportRunCSV(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), runID) }, rankViewer) {
+		return
+	}
 	run, err := s.Store.GetRun(r.Context(), runID)
 	if err != nil {
 		writeErr(w, err)

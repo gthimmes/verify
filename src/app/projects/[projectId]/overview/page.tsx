@@ -82,6 +82,9 @@ export default async function ProjectOverviewPage({
             <Link href={`/projects/${projectId}/reports`}>
               <Button variant="outline">Reports</Button>
             </Link>
+            <Link href={`/projects/${projectId}/settings`}>
+              <Button variant="outline" data-testid="project-settings-link">Members</Button>
+            </Link>
             <Link href={`/projects/${projectId}/cases/new`}>
               <Button data-testid="new-case-cta">+ New test case</Button>
             </Link>

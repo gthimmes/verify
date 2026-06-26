@@ -33,6 +33,23 @@ type CreateAttachmentInput struct {
 	Data        string `json:"data"`
 }
 
+// ProjectMember is a user's membership of a project, with their project role.
+type ProjectMember struct {
+	UserID    string    `json:"userId"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"` // admin | editor | viewer
+	AvatarURL *string   `json:"avatarUrl,omitempty"`
+	IsOwner   bool      `json:"isOwner"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// AddMemberInput adds (or re-roles) a member by email.
+type AddMemberInput struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
 // TemplateBody is the reusable subset of a test case that a template carries.
 // It mirrors the content fields of TestCaseInput, omitting anything
 // project-scoped (folder/feature, public id, automation linkage).

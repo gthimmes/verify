@@ -49,6 +49,9 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "projectId")
+	if !s.ensureRole(w, r, id, rankAdmin) {
+		return
+	}
 	var in struct {
 		Name   *string `json:"name"`
 		Status *string `json:"status"`
@@ -68,6 +71,66 @@ func (s *Server) patchProject(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, err)
 			return
 		}
+	}
+	writeJSON(w, 204, nil)
+}
+
+// ─── members ─────────────────────────────────────────────────────────────────
+
+func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) {
+	members, err := s.Store.ListMembers(r.Context(), chi.URLParam(r, "projectId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, members)
+}
+
+func (s *Server) addMember(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "projectId")
+	if !s.ensureRole(w, r, projectID, rankAdmin) {
+		return
+	}
+	var in domain.AddMemberInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	m, err := s.Store.AddMember(r.Context(), projectID, in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 201, m)
+}
+
+func (s *Server) updateMemberRole(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "projectId")
+	if !s.ensureRole(w, r, projectID, rankAdmin) {
+		return
+	}
+	var in struct {
+		Role string `json:"role"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := s.Store.UpdateMemberRole(r.Context(), projectID, chi.URLParam(r, "userId"), in.Role, currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
+func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
+	projectID := chi.URLParam(r, "projectId")
+	if !s.ensureRole(w, r, projectID, rankAdmin) {
+		return
+	}
+	if err := s.Store.RemoveMember(r.Context(), projectID, chi.URLParam(r, "userId"), currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
 	}
 	writeJSON(w, 204, nil)
 }
@@ -110,6 +173,9 @@ func (s *Server) createArea(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchArea(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "areaId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByArea(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Archived *bool `json:"archived"`
 	}
@@ -128,6 +194,9 @@ func (s *Server) patchArea(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) reorderArea(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "areaId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByArea(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Direction string `json:"direction"`
 	}
@@ -169,6 +238,9 @@ func (s *Server) createFolder(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchFolder(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "folderId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByFolder(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Name     *string `json:"name"`
 		Archived *bool   `json:"archived"`
@@ -194,6 +266,9 @@ func (s *Server) patchFolder(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) moveFolder(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "folderId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByFolder(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		TargetParentID *string `json:"targetParentId"`
 	}
@@ -210,6 +285,9 @@ func (s *Server) moveFolder(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) reorderFolder(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "folderId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByFolder(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Direction string `json:"direction"`
 	}
@@ -251,6 +329,9 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) patchFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "featureId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByFeature(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Archived     *bool   `json:"archived"`
 		TargetAreaID *string `json:"targetAreaId"`
@@ -302,7 +383,11 @@ func (s *Server) listCases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getCase(w http.ResponseWriter, r *http.Request) {
-	c, err := s.Store.GetTestCase(r.Context(), chi.URLParam(r, "caseId"))
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankViewer) {
+		return
+	}
+	c, err := s.Store.GetTestCase(r.Context(), id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -328,6 +413,9 @@ func (s *Server) createCase(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateCase(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in domain.TestCaseInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
@@ -342,7 +430,11 @@ func (s *Server) updateCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteCase(w http.ResponseWriter, r *http.Request) {
-	if err := s.Store.SoftDeleteTestCase(r.Context(), chi.URLParam(r, "caseId"), true); err != nil {
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankEditor) {
+		return
+	}
+	if err := s.Store.SoftDeleteTestCase(r.Context(), id, true); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -350,7 +442,11 @@ func (s *Server) deleteCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) restoreCase(w http.ResponseWriter, r *http.Request) {
-	if err := s.Store.SoftDeleteTestCase(r.Context(), chi.URLParam(r, "caseId"), false); err != nil {
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankEditor) {
+		return
+	}
+	if err := s.Store.SoftDeleteTestCase(r.Context(), id, false); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -358,7 +454,11 @@ func (s *Server) restoreCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listCaseVersions(w http.ResponseWriter, r *http.Request) {
-	versions, err := s.Store.ListCaseVersions(r.Context(), chi.URLParam(r, "caseId"))
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankViewer) {
+		return
+	}
+	versions, err := s.Store.ListCaseVersions(r.Context(), id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -372,7 +472,11 @@ func (s *Server) getCaseVersion(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	v, err := s.Store.GetCaseVersion(r.Context(), chi.URLParam(r, "caseId"), version)
+	caseID := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), caseID) }, rankViewer) {
+		return
+	}
+	v, err := s.Store.GetCaseVersion(r.Context(), caseID, version)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -381,7 +485,11 @@ func (s *Server) getCaseVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listRelations(w http.ResponseWriter, r *http.Request) {
-	rels, err := s.Store.ListRelations(r.Context(), chi.URLParam(r, "caseId"))
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankViewer) {
+		return
+	}
+	rels, err := s.Store.ListRelations(r.Context(), id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -390,6 +498,10 @@ func (s *Server) listRelations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) addRelation(w http.ResponseWriter, r *http.Request) {
+	caseID := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), caseID) }, rankEditor) {
+		return
+	}
 	var in struct {
 		TargetCaseID string `json:"targetCaseId"`
 		RelationType string `json:"relationType"`
@@ -398,7 +510,7 @@ func (s *Server) addRelation(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	if err := s.Store.AddRelation(r.Context(), chi.URLParam(r, "caseId"), in.TargetCaseID, in.RelationType, currentUserID(r)); err != nil {
+	if err := s.Store.AddRelation(r.Context(), caseID, in.TargetCaseID, in.RelationType, currentUserID(r)); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -406,7 +518,11 @@ func (s *Server) addRelation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) removeRelation(w http.ResponseWriter, r *http.Request) {
-	if err := s.Store.RemoveRelation(r.Context(), chi.URLParam(r, "caseId"), chi.URLParam(r, "otherId"), currentUserID(r)); err != nil {
+	caseID := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), caseID) }, rankEditor) {
+		return
+	}
+	if err := s.Store.RemoveRelation(r.Context(), caseID, chi.URLParam(r, "otherId"), currentUserID(r)); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -432,6 +548,9 @@ func (s *Server) getTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createTemplate(w http.ResponseWriter, r *http.Request) {
+	if !s.ensureOrgAdmin(w, r) {
+		return
+	}
 	var in domain.CreateTemplateInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
@@ -446,6 +565,9 @@ func (s *Server) createTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateTemplate(w http.ResponseWriter, r *http.Request) {
+	if !s.ensureOrgAdmin(w, r) {
+		return
+	}
 	var in domain.CreateTemplateInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
@@ -460,6 +582,9 @@ func (s *Server) updateTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteTemplate(w http.ResponseWriter, r *http.Request) {
+	if !s.ensureOrgAdmin(w, r) {
+		return
+	}
 	if err := s.Store.DeleteTemplate(r.Context(), chi.URLParam(r, "templateId"), currentUserID(r)); err != nil {
 		writeErr(w, err)
 		return
@@ -469,7 +594,11 @@ func (s *Server) deleteTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listAttachments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	atts, err := s.Store.ListAttachments(r.Context(), q.Get("entityType"), q.Get("entityId"))
+	entityType, entityID := q.Get("entityType"), q.Get("entityId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByEntity(r.Context(), entityType, entityID) }, rankViewer) {
+		return
+	}
+	atts, err := s.Store.ListAttachments(r.Context(), entityType, entityID)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -483,6 +612,9 @@ func (s *Server) addAttachment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByEntity(r.Context(), in.EntityType, in.EntityID) }, rankEditor) {
+		return
+	}
 	a, err := s.Store.AddAttachment(r.Context(), in, currentUserID(r))
 	if err != nil {
 		writeErr(w, err)
@@ -492,7 +624,11 @@ func (s *Server) addAttachment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) downloadAttachment(w http.ResponseWriter, r *http.Request) {
-	filename, contentType, data, err := s.Store.GetAttachmentBlob(r.Context(), chi.URLParam(r, "attachmentId"))
+	aid := chi.URLParam(r, "attachmentId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByAttachment(r.Context(), aid) }, rankViewer) {
+		return
+	}
+	filename, contentType, data, err := s.Store.GetAttachmentBlob(r.Context(), aid)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -505,7 +641,11 @@ func (s *Server) downloadAttachment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteAttachment(w http.ResponseWriter, r *http.Request) {
-	if err := s.Store.DeleteAttachment(r.Context(), chi.URLParam(r, "attachmentId"), currentUserID(r)); err != nil {
+	aid := chi.URLParam(r, "attachmentId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByAttachment(r.Context(), aid) }, rankEditor) {
+		return
+	}
+	if err := s.Store.DeleteAttachment(r.Context(), aid, currentUserID(r)); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -538,7 +678,11 @@ func (s *Server) bulkUpdateCases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) duplicateCase(w http.ResponseWriter, r *http.Request) {
-	c, err := s.Store.DuplicateTestCase(r.Context(), chi.URLParam(r, "caseId"), currentUserID(r))
+	id := chi.URLParam(r, "caseId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByCase(r.Context(), id) }, rankEditor) {
+		return
+	}
+	c, err := s.Store.DuplicateTestCase(r.Context(), id, currentUserID(r))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -589,7 +733,11 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
-	run, err := s.Store.GetRun(r.Context(), chi.URLParam(r, "runId"))
+	id := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), id) }, rankViewer) {
+		return
+	}
+	run, err := s.Store.GetRun(r.Context(), id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -598,7 +746,11 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listExecutions(w http.ResponseWriter, r *http.Request) {
-	execs, err := s.Store.ListExecutions(r.Context(), chi.URLParam(r, "runId"))
+	id := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), id) }, rankViewer) {
+		return
+	}
+	execs, err := s.Store.ListExecutions(r.Context(), id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -608,6 +760,9 @@ func (s *Server) listExecutions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) setRunStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in struct {
 		Status      string `json:"status"`
 		AbortReason string `json:"abortReason"`
@@ -624,7 +779,11 @@ func (s *Server) setRunStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) cloneRun(w http.ResponseWriter, r *http.Request) {
-	run, err := s.Store.CloneRun(r.Context(), chi.URLParam(r, "runId"), currentUserID(r))
+	id := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), id) }, rankEditor) {
+		return
+	}
+	run, err := s.Store.CloneRun(r.Context(), id, currentUserID(r))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -633,7 +792,11 @@ func (s *Server) cloneRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) reRunFailed(w http.ResponseWriter, r *http.Request) {
-	run, err := s.Store.ReRunFailed(r.Context(), chi.URLParam(r, "runId"), currentUserID(r))
+	id := chi.URLParam(r, "runId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByRun(r.Context(), id) }, rankEditor) {
+		return
+	}
+	run, err := s.Store.ReRunFailed(r.Context(), id, currentUserID(r))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -645,6 +808,9 @@ func (s *Server) reRunFailed(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) recordExecution(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "executionId")
+	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByExecution(r.Context(), id) }, rankEditor) {
+		return
+	}
 	var in domain.RecordExecutionInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)

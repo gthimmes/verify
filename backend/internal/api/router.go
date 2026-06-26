@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,10 +20,26 @@ import (
 type Server struct {
 	Store  *store.Store
 	Google GoogleExchanger
+	// AuthEnforced turns on hard authentication + per-project role checks.
+	// When false (the default), the API runs additively: unauthenticated
+	// requests fall back to the demo user and role checks are no-ops.
+	AuthEnforced bool
 }
 
 func New(s *store.Store) *Server {
-	return &Server{Store: s, Google: httpGoogleExchanger{}}
+	return &Server{
+		Store:        s,
+		Google:       httpGoogleExchanger{},
+		AuthEnforced: authEnforcedFromEnv(),
+	}
+}
+
+func authEnforcedFromEnv() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_ENFORCED"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // request-scoped current-user keys.
@@ -45,7 +63,18 @@ func (s *Server) currentUserMiddleware(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
 				return
 			}
-			// Unknown/expired token → fall through to the demo user.
+			// Unknown/expired token → fall through below.
+		}
+
+		// No valid session.  Under enforcement, only public paths proceed;
+		// everything else is rejected.  Otherwise fall back to the demo user.
+		if s.AuthEnforced {
+			if isPublicPath(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
+			return
 		}
 
 		u, err := s.Store.CurrentUser(ctx)
@@ -54,6 +83,37 @@ func (s *Server) currentUserMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
+	})
+}
+
+// isPublicPath lists endpoints reachable without a session even when auth is
+// enforced: the health check and the OAuth code exchange (the login itself).
+func isPublicPath(p string) bool {
+	switch p {
+	case "/health", "/api/v1/auth/google/exchange":
+		return true
+	}
+	return false
+}
+
+// projectAccess gates every /projects/{projectId}/... route when enforcement
+// is on: GETs require viewer rank, mutations require editor.  Handlers that
+// need a stricter rank (e.g. project settings, member management) add their own
+// ensureRole(...) on top.
+func (s *Server) projectAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.AuthEnforced {
+			next.ServeHTTP(w, r)
+			return
+		}
+		min := rankViewer
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			min = rankEditor
+		}
+		if !s.ensureRole(w, r, chi.URLParam(r, "projectId"), min) {
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -93,31 +153,48 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/auth/logout", s.logout)
 		r.Get("/auth/me", s.me)
 
-		// projects
+		// projects (collection)
 		r.Get("/projects", s.listProjects)
 		r.Post("/projects", s.createProject)
-		r.Get("/projects/{projectId}", s.getProject)
-		r.Patch("/projects/{projectId}", s.patchProject)
 
-		// areas + features
-		r.Get("/projects/{projectId}/areas", s.listAreas)
-		r.Get("/projects/{projectId}/hierarchy", s.listHierarchy)
-		r.Post("/projects/{projectId}/areas", s.createArea)
+		// project-scoped routes share the projectAccess gate (viewer for reads,
+		// editor for writes); stricter actions add their own ensureRole.
+		r.Route("/projects/{projectId}", func(r chi.Router) {
+			r.Use(s.projectAccess)
+			r.Get("/", s.getProject)
+			r.Patch("/", s.patchProject)
+			r.Get("/areas", s.listAreas)
+			r.Get("/hierarchy", s.listHierarchy)
+			r.Post("/areas", s.createArea)
+			r.Get("/folders", s.listFolders)
+			r.Post("/folders", s.createFolder)
+			r.Get("/features", s.listFeatures)
+			r.Post("/features", s.createFeature)
+			r.Get("/cases", s.listCases)
+			r.Get("/cases/export.csv", s.exportCasesCSV)
+			r.Post("/cases", s.createCase)
+			r.Post("/cases/bulk", s.bulkUpdateCases)
+			r.Get("/runs", s.listRuns)
+			r.Post("/runs", s.createRun)
+			r.Get("/saved-filters", s.listSavedFilters)
+			r.Post("/saved-filters", s.createSavedFilter)
+			r.Get("/report", s.projectReport)
+			// members
+			r.Get("/members", s.listMembers)
+			r.Post("/members", s.addMember)
+			r.Patch("/members/{userId}", s.updateMemberRole)
+			r.Delete("/members/{userId}", s.removeMember)
+		})
+
+		// areas + features (entity-scoped)
 		r.Patch("/areas/{areaId}", s.patchArea)
 		r.Post("/areas/{areaId}/reorder", s.reorderArea)
-		r.Get("/projects/{projectId}/folders", s.listFolders)
-		r.Post("/projects/{projectId}/folders", s.createFolder)
 		r.Patch("/folders/{folderId}", s.patchFolder)
 		r.Post("/folders/{folderId}/move", s.moveFolder)
 		r.Post("/folders/{folderId}/reorder", s.reorderFolder)
-		r.Get("/projects/{projectId}/features", s.listFeatures)
-		r.Post("/projects/{projectId}/features", s.createFeature)
 		r.Patch("/features/{featureId}", s.patchFeature)
 
-		// test cases
-		r.Get("/projects/{projectId}/cases", s.listCases)
-		r.Get("/projects/{projectId}/cases/export.csv", s.exportCasesCSV)
-		r.Post("/projects/{projectId}/cases", s.createCase)
+		// test cases (entity-scoped)
 		r.Get("/cases/{caseId}", s.getCase)
 		r.Put("/cases/{caseId}", s.updateCase)
 		r.Delete("/cases/{caseId}", s.deleteCase)
@@ -128,12 +205,9 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/cases/{caseId}/relations", s.listRelations)
 		r.Post("/cases/{caseId}/relations", s.addRelation)
 		r.Delete("/cases/{caseId}/relations/{otherId}", s.removeRelation)
-		r.Post("/projects/{projectId}/cases/bulk", s.bulkUpdateCases)
 
-		// runs
+		// runs (entity-scoped; project-scoped list/create are in the group above)
 		r.Get("/runs", s.listAllRuns)
-		r.Get("/projects/{projectId}/runs", s.listRuns)
-		r.Post("/projects/{projectId}/runs", s.createRun)
 		r.Get("/runs/{runId}", s.getRun)
 		r.Get("/runs/{runId}/executions", s.listExecutions)
 		r.Get("/runs/{runId}/export.csv", s.exportRunCSV)
@@ -157,13 +231,10 @@ func (s *Server) Routes() http.Handler {
 		r.Patch("/templates/{templateId}", s.updateTemplate)
 		r.Delete("/templates/{templateId}", s.deleteTemplate)
 
-		// saved filters
-		r.Get("/projects/{projectId}/saved-filters", s.listSavedFilters)
-		r.Post("/projects/{projectId}/saved-filters", s.createSavedFilter)
+		// saved filters (entity-scoped delete; project-scoped list/create above)
 		r.Delete("/saved-filters/{filterId}", s.deleteSavedFilter)
 
-		// reports + audit + search
-		r.Get("/projects/{projectId}/report", s.projectReport)
+		// audit + search
 		r.Get("/audit/recent", s.recentAudit)
 		r.Get("/search", s.search)
 	})

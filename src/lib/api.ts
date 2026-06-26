@@ -75,6 +75,16 @@ export type CurrentUser = {
   avatarUrl?: string | null;
 };
 
+export type ProjectMember = {
+  userId: ID;
+  name: string;
+  email: string;
+  role: "admin" | "editor" | "viewer";
+  avatarUrl?: string | null;
+  isOwner: boolean;
+  createdAt: string;
+};
+
 export type Project = {
   id: ID;
   key: string;
@@ -557,6 +567,22 @@ export const api = {
     request<CaseVersionMeta[]>(`/cases/${caseId}/versions`),
   getCaseVersion: (caseId: ID, version: number) =>
     request<CaseVersion>(`/cases/${caseId}/versions/${version}`),
+
+  // members
+  listMembers: (projectId: ID) =>
+    request<ProjectMember[]>(`/projects/${projectId}/members`),
+  addMember: (projectId: ID, body: { email: string; role: string }) =>
+    request<ProjectMember>(`/projects/${projectId}/members`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateMemberRole: (projectId: ID, userId: ID, role: string) =>
+    request<void>(`/projects/${projectId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (projectId: ID, userId: ID) =>
+    request<void>(`/projects/${projectId}/members/${userId}`, { method: "DELETE" }),
 
   // templates
   listTemplates: () => request<Template[]>("/templates"),
