@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge, resultTone } from "@/components/ui/Badge";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import { recordExecution } from "@/app/actions/executions";
+import { LazyAttachments } from "@/components/attachments/Attachments";
 
 type Step = { order: number; action: string; expected: string };
 
@@ -265,6 +266,10 @@ export function ExecutionRow({
               </ul>
             </Section>
           ) : null}
+
+          <Section title="Attachments">
+            <LazyAttachments entityType="execution" entityId={execution.id} />
+          </Section>
         </div>
       ) : null}
     </div>

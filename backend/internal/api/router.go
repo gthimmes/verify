@@ -144,6 +144,12 @@ func (s *Server) Routes() http.Handler {
 		// executions
 		r.Patch("/executions/{executionId}", s.recordExecution)
 
+		// attachments
+		r.Get("/attachments", s.listAttachments)
+		r.Post("/attachments", s.addAttachment)
+		r.Get("/attachments/{attachmentId}/download", s.downloadAttachment)
+		r.Delete("/attachments/{attachmentId}", s.deleteAttachment)
+
 		// saved filters
 		r.Get("/projects/{projectId}/saved-filters", s.listSavedFilters)
 		r.Post("/projects/{projectId}/saved-filters", s.createSavedFilter)

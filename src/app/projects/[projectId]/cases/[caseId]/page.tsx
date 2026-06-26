@@ -8,6 +8,7 @@ import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { formatDate } from "@/lib/utils";
 import { duplicateTestCase, softDeleteTestCase } from "@/app/actions/testCases";
 import { RelatedCases } from "@/components/testcases/RelatedCases";
+import { Attachments } from "@/components/attachments/Attachments";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,9 @@ export default async function CaseDetailPage({
     return notFound();
   }
   const relations = await api.listRelations(caseId).catch(() => []);
+  const attachments = await api
+    .listAttachments("test_case", caseId)
+    .catch(() => []);
 
   const jiraKeys = (tc.jiraKeys ?? "")
     .split(",")
@@ -258,6 +262,20 @@ export default async function CaseDetailPage({
                 caseId={tc.id}
                 projectId={projectId}
                 relations={relations}
+              />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Attachments"
+              description="Screenshots, logs, or reference files for this case."
+            />
+            <CardBody>
+              <Attachments
+                entityType="test_case"
+                entityId={tc.id}
+                initial={attachments}
               />
             </CardBody>
           </Card>

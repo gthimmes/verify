@@ -11,6 +11,28 @@ type User struct {
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
+// Attachment is a file linked to a test case or execution. The List/metadata
+// form omits the bytes; the blob is fetched separately for download.
+type Attachment struct {
+	ID             string    `json:"id"`
+	EntityType     string    `json:"entityType"`
+	EntityID       string    `json:"entityId"`
+	Filename       string    `json:"filename"`
+	ContentType    string    `json:"contentType"`
+	SizeBytes      int       `json:"sizeBytes"`
+	UploadedByName string    `json:"uploadedByName"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// CreateAttachmentInput carries an upload; Data is standard base64.
+type CreateAttachmentInput struct {
+	EntityType  string `json:"entityType"`
+	EntityID    string `json:"entityId"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Data        string `json:"data"`
+}
+
 // RelatedCase is a "see also" link target as shown on a case detail page.
 type RelatedCase struct {
 	ID           string `json:"id"`

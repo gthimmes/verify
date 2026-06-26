@@ -178,6 +178,17 @@ export type TestCase = {
 
 export type TestCaseLite = TestCase & { dataRowCount: number };
 
+export type Attachment = {
+  id: ID;
+  entityType: "test_case" | "execution";
+  entityId: ID;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedByName: string;
+  createdAt: string;
+};
+
 export type RelatedCase = {
   id: ID;
   publicId: string;
@@ -423,6 +434,29 @@ export const api = {
       `/projects/${projectId}/cases?folderId=${encodeURIComponent(folderId)}&limit=2500`,
     ),
   getCase: (id: ID) => request<TestCase>(`/cases/${id}`),
+  listAttachments: (entityType: "test_case" | "execution", entityId: ID) =>
+    request<Attachment[]>(
+      `/attachments?entityType=${entityType}&entityId=${encodeURIComponent(entityId)}`,
+    ),
+  uploadAttachment: (body: {
+    entityType: "test_case" | "execution";
+    entityId: ID;
+    filename: string;
+    contentType: string;
+    data: string;
+  }) =>
+    request<Attachment>("/attachments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteAttachment: (id: ID) =>
+    request<void>(`/attachments/${id}`, { method: "DELETE" }),
+  // Raw blob fetch for the download route handler to proxy (forwards auth).
+  fetchAttachmentBlob: async (id: ID): Promise<Response> =>
+    fetch(`${v1}/attachments/${id}/download`, {
+      cache: "no-store",
+      headers: await authHeaders(),
+    }),
   listRelations: (caseId: ID) =>
     request<RelatedCase[]>(`/cases/${caseId}/relations`),
   addRelation: (caseId: ID, targetCaseId: ID) =>

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -410,6 +411,62 @@ func (s *Server) removeRelation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 204, nil)
+}
+
+func (s *Server) listAttachments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	atts, err := s.Store.ListAttachments(r.Context(), q.Get("entityType"), q.Get("entityId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, atts)
+}
+
+func (s *Server) addAttachment(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreateAttachmentInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	a, err := s.Store.AddAttachment(r.Context(), in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 201, a)
+}
+
+func (s *Server) downloadAttachment(w http.ResponseWriter, r *http.Request) {
+	filename, contentType, data, err := s.Store.GetAttachmentBlob(r.Context(), chi.URLParam(r, "attachmentId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", "inline; filename=\""+sanitizeFilename(filename)+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) deleteAttachment(w http.ResponseWriter, r *http.Request) {
+	if err := s.Store.DeleteAttachment(r.Context(), chi.URLParam(r, "attachmentId"), currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
+// sanitizeFilename strips characters that would break the Content-Disposition
+// header (quotes, control chars, path separators).
+func sanitizeFilename(name string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 32 || r == '"' || r == '\\' || r == '/' {
+			return '_'
+		}
+		return r
+	}, name)
 }
 
 func (s *Server) bulkUpdateCases(w http.ResponseWriter, r *http.Request) {

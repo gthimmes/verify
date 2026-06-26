@@ -13,6 +13,7 @@ import (
 // updating this list, so a reviewer can see it on the diff.
 var expectedTables = []string{
 	"areas",
+	"attachments",
 	"audit_logs",
 	"execution_attempts",
 	"features",
