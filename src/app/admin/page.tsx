@@ -17,6 +17,15 @@ export default async function AdminPage() {
       <PageHeader
         title="Admin"
         description="Cross-project rollups, recent activity, and (later) integrations + roles."
+        actions={
+          <Link
+            href="/admin/templates"
+            className="rounded-md border border-(--border) bg-(--surface) px-3 py-1.5 text-sm font-medium hover:bg-(--accent-soft) hover:text-(--accent)"
+            data-testid="admin-templates-link"
+          >
+            Manage templates
+          </Link>
+        }
       />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>

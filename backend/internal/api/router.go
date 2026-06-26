@@ -150,6 +150,13 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/attachments/{attachmentId}/download", s.downloadAttachment)
 		r.Delete("/attachments/{attachmentId}", s.deleteAttachment)
 
+		// templates
+		r.Get("/templates", s.listTemplates)
+		r.Post("/templates", s.createTemplate)
+		r.Get("/templates/{templateId}", s.getTemplate)
+		r.Patch("/templates/{templateId}", s.updateTemplate)
+		r.Delete("/templates/{templateId}", s.deleteTemplate)
+
 		// saved filters
 		r.Get("/projects/{projectId}/saved-filters", s.listSavedFilters)
 		r.Post("/projects/{projectId}/saved-filters", s.createSavedFilter)

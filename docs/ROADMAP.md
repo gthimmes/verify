@@ -24,13 +24,14 @@ For reference (so future roadmap items don't accidentally re-list these):
 - **Case relations**: undirected "see also" links between cases in a project, managed from the case detail page.
 - **Attachments**: files/screenshots on test cases and executions, with image thumbnails, download, and delete.
 - **Google sign-in** (additive): OAuth via Next + Go, httpOnly session cookie, header sign-in/out; demo fallback until enforcement lands.
+- **Templates**: org-wide reusable test-case scaffolds (`test_case_templates`), an `/admin/templates` CRUD, and a picker on the new-case form that prefills steps, classification, tags, and parameters.
 
 ## v1.x — fill the gaps the spec already signed off on
 
 1. **Real authentication.** 🟡 Google OIDC sign-in shipped, *additive*: Next handles the OAuth redirect, the Go API exchanges the code (client secret server-side), upserts the user, and mints an opaque session stored in an httpOnly cookie that `src/lib/api.ts` forwards as a bearer token. The header shows the signed-in user + sign-out. Sessions live in the `sessions` table; `users` gained `google_sub`/`avatar_url`. Requires `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (Go) and `GOOGLE_CLIENT_ID` (Next). Still to do: **enforce** (remove the demo-user fallback in `currentUserMiddleware` and gate routes), wire per-project roles via `project_members.role`, and add other providers (SAML/OIDC) as needed.
 2. **Imported authors.** The Testiny importer currently discards the `Owner`/`Created by`/`Modified by` strings. When auth ships, add a flag that upserts users by name (or by email if available) so attribution survives the import.
 3. **Attachments UI.** ✅ Shipped: polymorphic `attachments` table (test_case + execution), upload widget with image thumbnails / download / delete on case detail and (lazy-loaded) execution rows. Bytes stored inline (10 MB cap); object storage is a later op (see Operational follow-ups).
-4. **Templates UI.** Migration for `test_case_templates` + an `/admin/templates` CRUD + a template picker on the new-case form.
+4. **Templates UI.** ✅ Shipped: `test_case_templates` (name + description + a jsonb `body` holding the reusable case content), an `/admin/templates` CRUD (create/edit/delete, case-insensitive unique names), and a template picker on the new-case form that prefills title, description, classification, tags, steps, and parameters. Templates are project-agnostic (no folder/feature/automation linkage).
 5. **Notifications.** Email + in-app for assignment, run completion, defect linked to your case, comment mention. Needs the v2 job runner.
 6. **CSV / PDF export.** ✅ CSV shipped (per-run results + filtered case list, synchronous Go endpoints). PDF still pending — queue it through the v2 job runner.
 7. **Saved filters.** ✅ Shipped for `/cases` and `/runs` (`saved_filters` table is `scope`-aware; the runs list gained status + text filters and the same save/load chip bar, with the `shared` flag).

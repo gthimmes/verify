@@ -413,6 +413,60 @@ func (s *Server) removeRelation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
+func (s *Server) listTemplates(w http.ResponseWriter, r *http.Request) {
+	ts, err := s.Store.ListTemplates(r.Context())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, ts)
+}
+
+func (s *Server) getTemplate(w http.ResponseWriter, r *http.Request) {
+	t, err := s.Store.GetTemplate(r.Context(), chi.URLParam(r, "templateId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, t)
+}
+
+func (s *Server) createTemplate(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreateTemplateInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, err := s.Store.CreateTemplate(r.Context(), in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 201, t)
+}
+
+func (s *Server) updateTemplate(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreateTemplateInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, err := s.Store.UpdateTemplate(r.Context(), chi.URLParam(r, "templateId"), in, currentUserID(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, t)
+}
+
+func (s *Server) deleteTemplate(w http.ResponseWriter, r *http.Request) {
+	if err := s.Store.DeleteTemplate(r.Context(), chi.URLParam(r, "templateId"), currentUserID(r)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 204, nil)
+}
+
 func (s *Server) listAttachments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	atts, err := s.Store.ListAttachments(r.Context(), q.Get("entityType"), q.Get("entityId"))

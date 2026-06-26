@@ -9,6 +9,7 @@ import {
   updateTestCase,
   type TestCaseFormState,
 } from "@/app/actions/testCases";
+import type { Template } from "@/lib/api";
 
 type FeatureOption = { id: string; name: string; areaName: string };
 
@@ -42,11 +43,13 @@ export function TestCaseForm({
   initial,
   features,
   projectId,
+  templates = [],
 }: {
   mode: "create" | "edit";
   initial: TestCaseFormInitial;
   features: FeatureOption[];
   projectId: string;
+  templates?: Template[];
 }) {
   const submit = mode === "create" ? createTestCase : updateTestCase;
   const [state, formAction, pending] = useActionState(submit, initialState);
@@ -136,6 +139,29 @@ export function TestCaseForm({
     );
   }
 
+  const [templateId, setTemplateId] = useState("");
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const b = t.body;
+    if (b.title) setTitle(b.title);
+    setDescription(b.description ?? "");
+    setPreconditions(b.preconditions ?? "");
+    setFinalExpected(b.finalExpected ?? "");
+    setTestDataNotes(b.testDataNotes ?? "");
+    setType(b.type || "functional");
+    setPriority(b.priority || "medium");
+    setTagsRaw((b.tags ?? []).join(", "));
+    setSteps(
+      b.steps.length > 0
+        ? b.steps.map((s) => ({ action: s.action, expected: s.expected }))
+        : [{ action: "", expected: "" }],
+    );
+    setParameters(b.parameters.map((p) => ({ name: p.name })));
+    setDataRows([]);
+  }
+
   return (
     <form
       action={formAction}
@@ -161,6 +187,42 @@ export function TestCaseForm({
           .filter(Boolean)
           .join(",")}
       />
+
+      {mode === "create" && templates.length > 0 ? (
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader
+              title="Start from a template"
+              description="Optional. Prefills steps, classification, tags, and parameters; you can edit everything after."
+            />
+            <CardBody>
+              <Field label="Template" htmlFor="templatePicker">
+                <Select
+                  id="templatePicker"
+                  value={templateId}
+                  onChange={(e) => applyTemplate(e.target.value)}
+                  data-testid="template-picker"
+                >
+                  <option value="">— No template —</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {templateId
+                ? (() => {
+                    const t = templates.find((x) => x.id === templateId);
+                    return t?.description ? (
+                      <p className="mt-2 text-xs text-(--muted)">{t.description}</p>
+                    ) : null;
+                  })()
+                : null}
+            </CardBody>
+          </Card>
+        </div>
+      ) : null}
 
       {/* Left column: Definition */}
       <div className="flex flex-col gap-6">

@@ -33,6 +33,39 @@ type CreateAttachmentInput struct {
 	Data        string `json:"data"`
 }
 
+// TemplateBody is the reusable subset of a test case that a template carries.
+// It mirrors the content fields of TestCaseInput, omitting anything
+// project-scoped (folder/feature, public id, automation linkage).
+type TemplateBody struct {
+	Title         string          `json:"title"`
+	Description   string          `json:"description"`
+	Preconditions string          `json:"preconditions"`
+	FinalExpected string          `json:"finalExpected"`
+	TestDataNotes string          `json:"testDataNotes"`
+	Type          string          `json:"type"`
+	Priority      string          `json:"priority"`
+	Tags          []string        `json:"tags"`
+	Steps         []TestStep      `json:"steps"`
+	Parameters    []TestCaseParam `json:"parameters"`
+}
+
+// Template is a named, project-agnostic scaffold for a test case.
+type Template struct {
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Description   string       `json:"description"`
+	Body          TemplateBody `json:"body"`
+	CreatedByName string       `json:"createdByName"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	UpdatedAt     time.Time    `json:"updatedAt"`
+}
+
+type CreateTemplateInput struct {
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Body        TemplateBody `json:"body"`
+}
+
 // RelatedCase is a "see also" link target as shown on a case detail page.
 type RelatedCase struct {
 	ID           string `json:"id"`

@@ -198,6 +198,29 @@ export type RelatedCase = {
   relationType: string;
 };
 
+export type TemplateBody = {
+  title: string;
+  description: string;
+  preconditions: string;
+  finalExpected: string;
+  testDataNotes: string;
+  type: string;
+  priority: string;
+  tags: string[];
+  steps: TestStep[];
+  parameters: TestCaseParam[];
+};
+
+export type Template = {
+  id: ID;
+  name: string;
+  description: string;
+  body: TemplateBody;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TestCaseInput = {
   projectId?: ID;
   featureId: ID;
@@ -534,6 +557,22 @@ export const api = {
     request<CaseVersionMeta[]>(`/cases/${caseId}/versions`),
   getCaseVersion: (caseId: ID, version: number) =>
     request<CaseVersion>(`/cases/${caseId}/versions/${version}`),
+
+  // templates
+  listTemplates: () => request<Template[]>("/templates"),
+  getTemplate: (id: ID) => request<Template>(`/templates/${id}`),
+  createTemplate: (body: { name: string; description: string; body: TemplateBody }) =>
+    request<Template>("/templates", { method: "POST", body: JSON.stringify(body) }),
+  updateTemplate: (
+    id: ID,
+    body: { name: string; description: string; body: TemplateBody },
+  ) =>
+    request<Template>(`/templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTemplate: (id: ID) =>
+    request<void>(`/templates/${id}`, { method: "DELETE" }),
 
   // saved filters
   listSavedFilters: (projectId: ID, scope = "cases") =>

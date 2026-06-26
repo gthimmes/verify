@@ -29,6 +29,7 @@ var expectedTables = []string{
 	"test_case_params",
 	"test_case_relations",
 	"test_case_tags",
+	"test_case_templates",
 	"test_case_versions",
 	"test_cases",
 	"test_executions",

@@ -14,12 +14,13 @@ export default async function NewCasePage({
 }) {
   const { projectId } = await params;
   const { featureId } = await searchParams;
-  let project, features, areas;
+  let project, features, areas, templates;
   try {
-    [project, features, areas] = await Promise.all([
+    [project, features, areas, templates] = await Promise.all([
       api.getProject(projectId),
       api.listFeatures(projectId),
       api.listAreas(projectId),
+      api.listTemplates(),
     ]);
   } catch {
     return notFound();
@@ -39,6 +40,7 @@ export default async function NewCasePage({
       <TestCaseForm
         mode="create"
         projectId={projectId}
+        templates={templates}
         features={features.map((f) => ({
           id: f.id,
           name: f.name,
