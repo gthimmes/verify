@@ -56,10 +56,9 @@ export default async function NewRunPage({
             type: c.type,
             status: c.status,
             automationStatus: c.automationStatus,
-            featureId: c.featureId,
-            featureName: c.featureName,
-            areaId: c.areaId,
-            areaName: c.areaName,
+            folderId: c.folderId,
+            folderName: c.folderName,
+            folderPath: c.folderPath,
             dataRowCount: c.dataRowCount,
             tags: c.tags,
           }))}

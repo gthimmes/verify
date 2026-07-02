@@ -14,11 +14,11 @@ func TestCaseVersions_recordedOnCreateAndUpdate(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Original title"}, uid)
+	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Original title"}, uid)
 
 	// edit twice
 	in := domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Second title",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Second title",
 		Type: "functional", Priority: "high", Status: "active", AutomationStatus: "not_automated",
 		Steps: []domain.TestStep{{Order: 0, Action: "do", Expected: "done"}},
 	}
@@ -68,7 +68,7 @@ func TestGetCaseVersion_notFound(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Only v1"}, uid)
+	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Only v1"}, uid)
 
 	if _, err := s.GetCaseVersion(ctx, tc.ID, 99); err != store.ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)

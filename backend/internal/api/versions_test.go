@@ -12,14 +12,12 @@ func TestCaseVersions_endpoint(t *testing.T) {
 	var p map[string]any
 	do(t, "POST", base+"/projects", map[string]string{"name": "Hist Co", "key": "HIS"}, &p)
 	pid := p["id"].(string)
-	var area map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/areas", map[string]string{"name": "Area", "key": "ARE"}, &area)
-	var feat map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/features", map[string]string{"areaId": area["id"].(string), "name": "Feat"}, &feat)
-	fid := feat["id"].(string)
+	var folder map[string]any
+	do(t, "POST", base+"/projects/"+pid+"/folders", map[string]string{"name": "Folder"}, &folder)
+	fid := folder["id"].(string)
 
 	body := map[string]any{
-		"featureId": fid, "title": "First", "type": "functional",
+		"folderId": fid, "title": "First", "type": "functional",
 		"priority": "medium", "status": "active", "automationStatus": "not_automated",
 		"steps": []map[string]any{{"order": 0, "action": "a", "expected": "b"}},
 	}

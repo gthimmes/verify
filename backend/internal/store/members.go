@@ -229,19 +229,8 @@ func (s *Store) ProjectIDByExecution(ctx context.Context, executionID string) (s
 		where e.id = $1`, executionID)
 }
 
-func (s *Store) ProjectIDByArea(ctx context.Context, areaID string) (string, error) {
-	return s.scalarProjectID(ctx, `select project_id::text from areas where id = $1`, areaID)
-}
-
 func (s *Store) ProjectIDByFolder(ctx context.Context, folderID string) (string, error) {
 	return s.scalarProjectID(ctx, `select project_id::text from folders where id = $1`, folderID)
-}
-
-func (s *Store) ProjectIDByFeature(ctx context.Context, featureID string) (string, error) {
-	return s.scalarProjectID(ctx, `
-		select a.project_id::text from features f
-		join areas a on a.id = f.area_id
-		where f.id = $1`, featureID)
 }
 
 // ProjectIDByEntity resolves an attachable entity (test_case | execution) to

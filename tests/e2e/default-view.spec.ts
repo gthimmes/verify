@@ -140,12 +140,11 @@ test.describe("Default view — folder view is the landing", () => {
     await page.getByRole("link", { name: "Overview" }).click();
 
     await expect(page).toHaveURL(new RegExp(`/projects/${id}/overview$`));
-    // The overview keeps the "Hierarchy" heading and area-creation entry
-    // point — area/feature management lives here, not on the cases page.
+    // The overview is folder-based: it shows a "Folders" heading and links to
+    // the Cases sidebar for folder management.
     await expect(
-      page.getByRole("heading", { name: "Hierarchy" }),
+      page.getByRole("heading", { name: "Folders" }),
     ).toBeVisible();
-    await expect(page.getByTestId("new-area-button").first()).toBeVisible();
   });
 
   test("breadcrumb 'Projects' link goes to the list (does not loop)", async ({

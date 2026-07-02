@@ -52,7 +52,7 @@ src/                                   # Next.js (UI only)
 │   └── projects/[projectId]/...       # per-project routes (cases page renders FolderTree)
 ├── components/
 │   ├── shell/, ui/                    # primitives
-│   ├── projects/                      # FolderTree (sidebar), area/feature dialogs
+│   ├── projects/                      # FolderTree (sidebar), project dialogs, members
 │   ├── testcases/TestCaseForm.tsx     # client form with steps + params + data rows
 │   └── runs/                          # NewRunForm, RunStatusActions, ExecutionRow
 └── lib/
@@ -84,8 +84,8 @@ playwright.config.ts
 - **All persistence lives in Go.** The Next.js app **never** opens a database connection. If you find yourself reaching for `pg`, `prisma`, or `better-sqlite3` in `src/`, stop — extend the Go API and call it from `src/lib/api.ts` instead.
 - **Server Actions are thin proxies.** Files in `src/app/actions/*.ts` Zod-validate input and forward to the matching Go endpoint. They're allowed to do `revalidatePath` and `redirect` after the API call returns. They are not allowed to do business logic.
 - **Reads happen in Server Components.** Pages `await api.x(...)`. No useEffect-fetching from client components.
-- **Public test IDs are stable, project-scoped.** Format `{PROJECT_KEY}-{AREA_KEY}-{4-digit-seq}`. (Area-key segment is retained from the pre-folders era; new imports keep this format too, deriving the area-like segment from the first folder under the project.)
-- **Folders are the canonical hierarchy.** The `folders` table is a recursive tree (`parent_id` self-FK). Test cases reference a folder via `folder_id`. The legacy `areas` / `features` tables still exist for backwards compatibility but new code should use folders.
+- **Public test IDs are stable, project-scoped.** Format `{PROJECT_KEY}-{MIDKEY}-{4-digit-seq}`. `MIDKEY` is derived from the case's **root (top-level) folder** name (uppercase, A–Z0–9 only, first 3 chars; `GEN` for root-level cases or names with no usable chars). IDs are frozen at creation — existing ones never change.
+- **Folders are the only hierarchy.** The `folders` table is a recursive tree (`parent_id` self-FK). Test cases reference a folder via a **NOT NULL** `folder_id`. The legacy `areas` / `features` tables were removed in `0009_drop_legacy_hierarchy.sql`; there is no `feature_id`. Folder CRUD lives in the `/cases` sidebar (`FolderTree`); the project overview is a read-only folder summary.
 - **Soft delete is `deleted_at`.** Default queries filter it out. Restore by nulling.
 - **Test runs are snapshots.** A `run_snapshot_cases` row freezes title, steps, parameters, data rows, and version at run creation. Editing the live `test_cases` row later doesn't reach back.
 - **Parameterized executions are 1-per-row.** Each `test_case_data_rows` produces its own `test_executions` (with `data_row_index`).

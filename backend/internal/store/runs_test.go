@@ -18,15 +18,15 @@ func runFixture(t *testing.T, s *store.Store, uid string) (projectID string, cas
 	f := makeFeature(t, s, p.ID, a.ID, "One-time payment")
 
 	c1 := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Pay invoice",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Pay invoice",
 		Priority: "critical", AutomationStatus: "not_automated",
 	}, uid)
 	c2 := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Refund",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Refund",
 		Priority: "high", AutomationStatus: "not_automated",
 	}, uid)
 	cParam := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Pay across methods",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Pay across methods",
 		Priority: "high",
 		Steps: []domain.TestStep{
 			{Order: 0, Action: "Pay with {{method}}", Expected: "Charged"},

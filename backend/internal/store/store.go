@@ -66,7 +66,7 @@ func (s *Store) ListProjects(ctx context.Context, includeArchived bool) ([]domai
 		select p.id::text, p.key, p.name, p.description, p.status, p.owner_id::text,
 		       u.name, p.created_at, p.updated_at, p.deleted_at,
 		       (select count(*) from test_cases tc where tc.project_id = p.id and tc.deleted_at is null) as case_count,
-		       (select count(*) from areas a where a.project_id = p.id) as area_count,
+		       (select count(*) from folders f where f.project_id = p.id and f.parent_id is null) as folder_count,
 		       (select count(*) from test_runs r where r.project_id = p.id) as run_count,
 		       (select count(*) from test_runs r where r.project_id = p.id and r.status in ('draft','in_progress','blocked')) as active_runs,
 		       (select count(*) from test_cases tc where tc.project_id = p.id and tc.deleted_at is null and tc.automation_status in ('full','partial')) as automated
@@ -85,7 +85,7 @@ func (s *Store) ListProjects(ctx context.Context, includeArchived bool) ([]domai
 		var p domain.ProjectSummary
 		if err := rows.Scan(&p.ID, &p.Key, &p.Name, &p.Description, &p.Status, &p.OwnerID, &p.OwnerName,
 			&p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
-			&p.TestCaseCount, &p.AreaCount, &p.RunCount, &p.ActiveRunCount, &p.AutomatedCount); err != nil {
+			&p.TestCaseCount, &p.FolderCount, &p.RunCount, &p.ActiveRunCount, &p.AutomatedCount); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -190,222 +190,6 @@ func (s *Store) SetProjectStatus(ctx context.Context, id, status string) error {
 	return err
 }
 
-// ─── areas ───────────────────────────────────────────────────────────────────
-
-// AreaWithFeatures is the hierarchy-tree row shape returned by /hierarchy.
-type AreaWithFeatures struct {
-	domain.Area
-	Features []domain.Feature `json:"features"`
-}
-
-func (s *Store) ListAreasWithFeatures(ctx context.Context, projectID string) ([]AreaWithFeatures, error) {
-	rows, err := s.Pool.Query(ctx, `
-		select id::text, project_id::text, key, name, description, display_order, archived, created_at, updated_at
-		from areas where project_id = $1 order by display_order, name`, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []AreaWithFeatures{}
-	areaIDs := []string{}
-	for rows.Next() {
-		var a domain.Area
-		if err := rows.Scan(&a.ID, &a.ProjectID, &a.Key, &a.Name, &a.Description, &a.DisplayOrder,
-			&a.Archived, &a.CreatedAt, &a.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, AreaWithFeatures{Area: a, Features: []domain.Feature{}})
-		areaIDs = append(areaIDs, a.ID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(areaIDs) == 0 {
-		return out, nil
-	}
-	frows, err := s.Pool.Query(ctx, `
-		select id::text, area_id::text, name, description, display_order, archived, created_at, updated_at
-		from features where area_id = any($1) order by display_order, name`, areaIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer frows.Close()
-	for frows.Next() {
-		var f domain.Feature
-		if err := frows.Scan(&f.ID, &f.AreaID, &f.Name, &f.Description, &f.DisplayOrder,
-			&f.Archived, &f.CreatedAt, &f.UpdatedAt); err != nil {
-			return nil, err
-		}
-		for i := range out {
-			if out[i].ID == f.AreaID {
-				out[i].Features = append(out[i].Features, f)
-				break
-			}
-		}
-	}
-	return out, frows.Err()
-}
-
-func (s *Store) ListAreas(ctx context.Context, projectID string) ([]domain.Area, error) {
-	rows, err := s.Pool.Query(ctx, `
-		select id::text, project_id::text, key, name, description, display_order, archived, created_at, updated_at
-		from areas where project_id = $1 order by display_order, name`, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []domain.Area{}
-	for rows.Next() {
-		var a domain.Area
-		if err := rows.Scan(&a.ID, &a.ProjectID, &a.Key, &a.Name, &a.Description, &a.DisplayOrder,
-			&a.Archived, &a.CreatedAt, &a.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) ListFeatures(ctx context.Context, projectID string) ([]domain.Feature, error) {
-	rows, err := s.Pool.Query(ctx, `
-		select f.id::text, f.area_id::text, f.name, f.description, f.display_order, f.archived,
-		       f.created_at, f.updated_at
-		from features f join areas a on a.id = f.area_id
-		where a.project_id = $1
-		order by a.display_order, f.display_order, f.name`, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []domain.Feature{}
-	for rows.Next() {
-		var f domain.Feature
-		if err := rows.Scan(&f.ID, &f.AreaID, &f.Name, &f.Description, &f.DisplayOrder,
-			&f.Archived, &f.CreatedAt, &f.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, f)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) CreateArea(ctx context.Context, in domain.CreateAreaInput) (*domain.Area, error) {
-	in.Name = strings.TrimSpace(in.Name)
-	if len(in.Name) < 2 {
-		return nil, fmt.Errorf("name too short")
-	}
-	desired := strings.ToUpper(strings.TrimSpace(in.Key))
-	if desired == "" {
-		desired = shortKey(in.Name)
-	}
-	tryKey := desired
-	for n := 2; n < 50; n++ {
-		var exists bool
-		if err := s.Pool.QueryRow(ctx, `select exists(select 1 from areas where project_id = $1 and key = $2)`, in.ProjectID, tryKey).Scan(&exists); err != nil {
-			return nil, err
-		}
-		if !exists {
-			break
-		}
-		tryKey = fmt.Sprintf("%s%d", desired, n)
-	}
-	var maxOrd int
-	_ = s.Pool.QueryRow(ctx, `select coalesce(max(display_order), -1) from areas where project_id = $1`, in.ProjectID).Scan(&maxOrd)
-	var desc *string
-	if d := strings.TrimSpace(in.Description); d != "" {
-		desc = &d
-	}
-	var a domain.Area
-	err := s.Pool.QueryRow(ctx, `
-		insert into areas(project_id,key,name,description,display_order)
-		values($1,$2,$3,$4,$5)
-		returning id::text, project_id::text, key, name, description, display_order, archived, created_at, updated_at`,
-		in.ProjectID, tryKey, in.Name, desc, maxOrd+1,
-	).Scan(&a.ID, &a.ProjectID, &a.Key, &a.Name, &a.Description, &a.DisplayOrder,
-		&a.Archived, &a.CreatedAt, &a.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &a, nil
-}
-
-func (s *Store) SetAreaArchived(ctx context.Context, id string, archived bool) error {
-	_, err := s.Pool.Exec(ctx, `update areas set archived = $1, updated_at = now() where id = $2`, archived, id)
-	return err
-}
-
-func (s *Store) ReorderArea(ctx context.Context, id, direction string) error {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	var projID string
-	var ord int
-	if err := tx.QueryRow(ctx, `select project_id::text, display_order from areas where id = $1`, id).Scan(&projID, &ord); err != nil {
-		return err
-	}
-	op, dir := "<", "desc"
-	if direction == "down" {
-		op, dir = ">", "asc"
-	}
-	var nbrID string
-	var nbrOrd int
-	err = tx.QueryRow(ctx,
-		fmt.Sprintf(`select id::text, display_order from areas where project_id = $1 and display_order %s $2 order by display_order %s limit 1`, op, dir),
-		projID, ord).Scan(&nbrID, &nbrOrd)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return tx.Rollback(ctx) // no-op
-	}
-	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `update areas set display_order = $1 where id = $2`, nbrOrd, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `update areas set display_order = $1 where id = $2`, ord, nbrID); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
-// ─── features ────────────────────────────────────────────────────────────────
-
-func (s *Store) CreateFeature(ctx context.Context, in domain.CreateFeatureInput) (*domain.Feature, error) {
-	in.Name = strings.TrimSpace(in.Name)
-	if len(in.Name) < 2 {
-		return nil, fmt.Errorf("name too short")
-	}
-	var maxOrd int
-	_ = s.Pool.QueryRow(ctx, `select coalesce(max(display_order), -1) from features where area_id = $1`, in.AreaID).Scan(&maxOrd)
-	var desc *string
-	if d := strings.TrimSpace(in.Description); d != "" {
-		desc = &d
-	}
-	var f domain.Feature
-	err := s.Pool.QueryRow(ctx, `
-		insert into features(area_id,name,description,display_order) values($1,$2,$3,$4)
-		returning id::text, area_id::text, name, description, display_order, archived, created_at, updated_at`,
-		in.AreaID, in.Name, desc, maxOrd+1,
-	).Scan(&f.ID, &f.AreaID, &f.Name, &f.Description, &f.DisplayOrder, &f.Archived, &f.CreatedAt, &f.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &f, nil
-}
-
-func (s *Store) MoveFeature(ctx context.Context, featureID, targetAreaID string) error {
-	var maxOrd int
-	_ = s.Pool.QueryRow(ctx, `select coalesce(max(display_order), -1) from features where area_id = $1`, targetAreaID).Scan(&maxOrd)
-	_, err := s.Pool.Exec(ctx, `update features set area_id = $1, display_order = $2, updated_at = now() where id = $3`,
-		targetAreaID, maxOrd+1, featureID)
-	return err
-}
-
-func (s *Store) SetFeatureArchived(ctx context.Context, id string, archived bool) error {
-	_, err := s.Pool.Exec(ctx, `update features set archived = $1, updated_at = now() where id = $2`, archived, id)
-	return err
-}
 
 // ─── test cases ──────────────────────────────────────────────────────────────
 
@@ -417,14 +201,20 @@ type CaseListFilter struct {
 	Priority           string
 	Status             string
 	AutomationStatus   string
-	FeatureID          string
-	AreaID             string
 	FolderID           string
 	IncludeDescendants bool // when true and FolderID is set, include cases in any descendant folder
 	Tag                string
 	Q                  string
 	Limit              int
 }
+
+// folderPathCTE materializes each folder's full "Parent > Child" path so case
+// queries can surface a readable location without an area/feature join.
+const folderPathCTE = `with recursive fp(id, path) as (
+		select id, name::text from folders where parent_id is null
+		union all
+		select f.id, fp.path || ' > ' || f.name from folders f join fp on f.parent_id = fp.id
+	)`
 
 // TestCaseLite — a list-row payload (no steps/dataRows).
 type TestCaseLite struct {
@@ -456,12 +246,6 @@ func (s *Store) ListTestCases(ctx context.Context, f CaseListFilter) ([]TestCase
 	if f.AutomationStatus != "" {
 		cond = append(cond, "tc.automation_status = "+addArg(f.AutomationStatus))
 	}
-	if f.FeatureID != "" {
-		cond = append(cond, "tc.feature_id = "+addArg(f.FeatureID))
-	}
-	if f.AreaID != "" {
-		cond = append(cond, "f.area_id = "+addArg(f.AreaID))
-	}
 	if f.FolderID != "" {
 		if f.IncludeDescendants {
 			cond = append(cond, "tc.folder_id in (with recursive sub(id) as ("+
@@ -484,9 +268,9 @@ func (s *Store) ListTestCases(ctx context.Context, f CaseListFilter) ([]TestCase
 	if limit <= 0 {
 		limit = 200
 	}
-	q := `
+	q := folderPathCTE + `
 		select tc.id::text, tc.project_id::text, p.key, p.name,
-		       tc.feature_id::text, f.name, a.id::text, a.name, a.key,
+		       tc.folder_id::text, coalesce(fo.name,''), coalesce(fp.path,''),
 		       tc.public_id, tc.sequence_num, tc.title, tc.description, tc.preconditions,
 		       tc.final_expected, tc.test_data_notes, tc.type, tc.priority, tc.status,
 		       tc.automation_status, tc.automation_framework, tc.automation_ref, tc.automation_repo_url,
@@ -495,8 +279,8 @@ func (s *Store) ListTestCases(ctx context.Context, f CaseListFilter) ([]TestCase
 		       coalesce((select array_agg(t.name order by t.name) from test_case_tags ct join tags t on t.id = ct.tag_id where ct.test_case_id = tc.id), '{}') as tags,
 		       (select count(*) from test_case_data_rows dr where dr.test_case_id = tc.id) as data_row_count
 		from test_cases tc
-		join features f on f.id = tc.feature_id
-		join areas a on a.id = f.area_id
+		left join folders fo on fo.id = tc.folder_id
+		left join fp on fp.id = tc.folder_id
 		join projects p on p.id = tc.project_id
 		join users cu on cu.id = tc.created_by_id
 		join users uu on uu.id = tc.updated_by_id
@@ -512,7 +296,7 @@ func (s *Store) ListTestCases(ctx context.Context, f CaseListFilter) ([]TestCase
 	for rows.Next() {
 		var t TestCaseLite
 		if err := rows.Scan(&t.ID, &t.ProjectID, &t.ProjectKey, &t.ProjectName,
-			&t.FeatureID, &t.FeatureName, &t.AreaID, &t.AreaName, &t.AreaKey,
+			&t.FolderID, &t.FolderName, &t.FolderPath,
 			&t.PublicID, &t.SequenceNum, &t.Title, &t.Description, &t.Preconditions,
 			&t.FinalExpected, &t.TestDataNotes, &t.Type, &t.Priority, &t.Status,
 			&t.AutomationStatus, &t.AutomationFramework, &t.AutomationRef, &t.AutomationRepoURL,
@@ -534,9 +318,9 @@ func (s *Store) SearchCases(ctx context.Context, query string, limit int) ([]Tes
 		limit = 50
 	}
 	q := "%" + query + "%"
-	rows, err := s.Pool.Query(ctx, `
+	rows, err := s.Pool.Query(ctx, folderPathCTE+`
 		select tc.id::text, tc.project_id::text, p.key, p.name,
-		       tc.feature_id::text, f.name, a.id::text, a.name, a.key,
+		       tc.folder_id::text, coalesce(fo.name,''), coalesce(fp.path,''),
 		       tc.public_id, tc.sequence_num, tc.title, tc.description, tc.preconditions,
 		       tc.final_expected, tc.test_data_notes, tc.type, tc.priority, tc.status,
 		       tc.automation_status, tc.automation_framework, tc.automation_ref, tc.automation_repo_url,
@@ -545,8 +329,8 @@ func (s *Store) SearchCases(ctx context.Context, query string, limit int) ([]Tes
 		       coalesce((select array_agg(t.name order by t.name) from test_case_tags ct join tags t on t.id = ct.tag_id where ct.test_case_id = tc.id), '{}') as tags,
 		       (select count(*) from test_case_data_rows dr where dr.test_case_id = tc.id) as data_row_count
 		from test_cases tc
-		join features f on f.id = tc.feature_id
-		join areas a on a.id = f.area_id
+		left join folders fo on fo.id = tc.folder_id
+		left join fp on fp.id = tc.folder_id
 		join projects p on p.id = tc.project_id
 		join users cu on cu.id = tc.created_by_id
 		join users uu on uu.id = tc.updated_by_id
@@ -564,7 +348,7 @@ func (s *Store) SearchCases(ctx context.Context, query string, limit int) ([]Tes
 	for rows.Next() {
 		var t TestCaseLite
 		if err := rows.Scan(&t.ID, &t.ProjectID, &t.ProjectKey, &t.ProjectName,
-			&t.FeatureID, &t.FeatureName, &t.AreaID, &t.AreaName, &t.AreaKey,
+			&t.FolderID, &t.FolderName, &t.FolderPath,
 			&t.PublicID, &t.SequenceNum, &t.Title, &t.Description, &t.Preconditions,
 			&t.FinalExpected, &t.TestDataNotes, &t.Type, &t.Priority, &t.Status,
 			&t.AutomationStatus, &t.AutomationFramework, &t.AutomationRef, &t.AutomationRepoURL,
@@ -579,9 +363,9 @@ func (s *Store) SearchCases(ctx context.Context, query string, limit int) ([]Tes
 
 func (s *Store) GetTestCase(ctx context.Context, id string) (*domain.TestCase, error) {
 	var t domain.TestCase
-	err := s.Pool.QueryRow(ctx, `
+	err := s.Pool.QueryRow(ctx, folderPathCTE+`
 		select tc.id::text, tc.project_id::text, p.key, p.name,
-		       tc.feature_id::text, f.name, a.id::text, a.name, a.key,
+		       tc.folder_id::text, coalesce(fo.name,''), coalesce(fp.path,''),
 		       tc.public_id, tc.sequence_num, tc.title, tc.description, tc.preconditions,
 		       tc.final_expected, tc.test_data_notes, tc.type, tc.priority, tc.status,
 		       tc.automation_status, tc.automation_framework, tc.automation_ref, tc.automation_repo_url,
@@ -589,14 +373,14 @@ func (s *Store) GetTestCase(ctx context.Context, id string) (*domain.TestCase, e
 		       cu.name, uu.name,
 		       coalesce((select array_agg(t.name order by t.name) from test_case_tags ct join tags t on t.id = ct.tag_id where ct.test_case_id = tc.id), '{}') as tags
 		from test_cases tc
-		join features f on f.id = tc.feature_id
-		join areas a on a.id = f.area_id
+		left join folders fo on fo.id = tc.folder_id
+		left join fp on fp.id = tc.folder_id
 		join projects p on p.id = tc.project_id
 		join users cu on cu.id = tc.created_by_id
 		join users uu on uu.id = tc.updated_by_id
 		where tc.id = $1`, id,
 	).Scan(&t.ID, &t.ProjectID, &t.ProjectKey, &t.ProjectName,
-		&t.FeatureID, &t.FeatureName, &t.AreaID, &t.AreaName, &t.AreaKey,
+		&t.FolderID, &t.FolderName, &t.FolderPath,
 		&t.PublicID, &t.SequenceNum, &t.Title, &t.Description, &t.Preconditions,
 		&t.FinalExpected, &t.TestDataNotes, &t.Type, &t.Priority, &t.Status,
 		&t.AutomationStatus, &t.AutomationFramework, &t.AutomationRef, &t.AutomationRepoURL,
@@ -678,11 +462,49 @@ func (s *Store) loadParamsRows(ctx context.Context, caseID string) ([]domain.Tes
 	return params, dataRows, nil
 }
 
+// rootFolderName returns the top-level folder name from a "Parent > Child"
+// path, falling back to the leaf name (or "(unfiled)" when both are empty).
+func rootFolderName(path, leaf string) string {
+	if path != "" {
+		if i := strings.Index(path, " > "); i >= 0 {
+			return path[:i]
+		}
+		return path
+	}
+	if leaf != "" {
+		return leaf
+	}
+	return "(unfiled)"
+}
+
+// folderMidKey derives the {MIDKEY} segment of a public test id from the
+// case's root folder name: uppercase, keep A–Z0–9, take the first 3 chars.
+// Falls back to "GEN" for root-level cases or names with no usable chars.
+func folderMidKey(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(name) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	key := b.String()
+	if len(key) > 3 {
+		key = key[:3]
+	}
+	if key == "" {
+		return "GEN"
+	}
+	return key
+}
+
 // CreateTestCase saves a new case + its steps/params/data rows + first version.
 func (s *Store) CreateTestCase(ctx context.Context, in domain.TestCaseInput, userID string) (*domain.TestCase, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	if len(in.Title) < 2 {
 		return nil, fmt.Errorf("title too short")
+	}
+	if strings.TrimSpace(in.FolderID) == "" {
+		return nil, fmt.Errorf("folder required")
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -690,17 +512,30 @@ func (s *Store) CreateTestCase(ctx context.Context, in domain.TestCaseInput, use
 	}
 	defer tx.Rollback(ctx)
 
-	var projectKey, areaKey string
-	if err := tx.QueryRow(ctx, `select p.key, a.key from projects p join features f on true and f.id = $2 join areas a on a.id = f.area_id where p.id = $1`,
-		in.ProjectID, in.FeatureID).Scan(&projectKey, &areaKey); err != nil {
-		return nil, fmt.Errorf("invalid project/feature: %w", err)
+	// Validate the folder belongs to the project and derive the public-id
+	// middle key from the case's root (top-level) folder name.
+	var projectKey, rootName string
+	if err := tx.QueryRow(ctx, `
+		with recursive up(id, parent_id, name) as (
+			select id, parent_id, name from folders where id = $1
+			union all
+			select f.id, f.parent_id, f.name from folders f join up on f.id = up.parent_id
+		)
+		select p.key, coalesce((select name from up where parent_id is null limit 1), '')
+		from folders fo join projects p on p.id = fo.project_id
+		where fo.id = $1 and fo.project_id = $2`,
+		in.FolderID, in.ProjectID).Scan(&projectKey, &rootName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("folder not found in project")
+		}
+		return nil, fmt.Errorf("invalid project/folder: %w", err)
 	}
 
 	var nextSeq int
 	if err := tx.QueryRow(ctx, `select coalesce(max(sequence_num), 0) + 1 from test_cases where project_id = $1`, in.ProjectID).Scan(&nextSeq); err != nil {
 		return nil, err
 	}
-	publicID := fmt.Sprintf("%s-%s-%04d", projectKey, areaKey, nextSeq)
+	publicID := fmt.Sprintf("%s-%s-%04d", projectKey, folderMidKey(rootName), nextSeq)
 	caseID, err := insertTestCase(ctx, tx, in, publicID, nextSeq, userID)
 	if err != nil {
 		return nil, err
@@ -753,15 +588,18 @@ func (s *Store) UpdateTestCase(ctx context.Context, id string, in domain.TestCas
 	if _, err := tx.Exec(ctx, `delete from test_case_tags where test_case_id = $1`, id); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(in.FolderID) == "" {
+		return nil, fmt.Errorf("folder required")
+	}
 	if _, err := tx.Exec(ctx, `
 		update test_cases set
-			feature_id = $1, title = $2, description = nullif($3,''), preconditions = nullif($4,''),
+			folder_id = $1, title = $2, description = nullif($3,''), preconditions = nullif($4,''),
 			final_expected = nullif($5,''), test_data_notes = nullif($6,''), type = $7, priority = $8, status = $9,
 			automation_status = $10, automation_framework = nullif($11,''), automation_ref = nullif($12,''),
 			automation_repo_url = nullif($13,''), jira_keys = nullif($14,''), updated_by_id = $15,
 			version = $16, updated_at = now()
 		where id = $17`,
-		in.FeatureID, in.Title, in.Description, in.Preconditions, in.FinalExpected, in.TestDataNotes,
+		in.FolderID, in.Title, in.Description, in.Preconditions, in.FinalExpected, in.TestDataNotes,
 		in.Type, in.Priority, in.Status, in.AutomationStatus, in.AutomationFramework, in.AutomationRef,
 		in.AutomationRepoURL, in.JiraKeys, userID, newVersion, id); err != nil {
 		return nil, err
@@ -793,14 +631,14 @@ func (s *Store) SoftDeleteTestCase(ctx context.Context, id string, deleted bool)
 	return err
 }
 
-// DuplicateTestCase clones a case in the same project/feature.
+// DuplicateTestCase clones a case in the same project/folder.
 func (s *Store) DuplicateTestCase(ctx context.Context, srcID, userID string) (*domain.TestCase, error) {
 	src, err := s.GetTestCase(ctx, srcID)
 	if err != nil {
 		return nil, err
 	}
 	in := domain.TestCaseInput{
-		ProjectID: src.ProjectID, FeatureID: src.FeatureID,
+		ProjectID: src.ProjectID, FolderID: src.FolderID,
 		Title:               src.Title + " (copy)",
 		Description:         deref(src.Description),
 		Preconditions:       deref(src.Preconditions),
@@ -980,13 +818,13 @@ func isOneOf(v string, allowed ...string) bool {
 func insertTestCase(ctx context.Context, tx pgx.Tx, in domain.TestCaseInput, publicID string, seq int, userID string) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx, `
-		insert into test_cases(project_id,feature_id,folder_id,public_id,sequence_num,title,description,preconditions,
+		insert into test_cases(project_id,folder_id,public_id,sequence_num,title,description,preconditions,
 			final_expected,test_data_notes,type,priority,status,automation_status,automation_framework,
 			automation_ref,automation_repo_url,jira_keys,created_by_id,updated_by_id)
-		values($1,$2,$3,$4,$5,$6,nullif($7,''),nullif($8,''),nullif($9,''),nullif($10,''),
-		       $11,$12,$13,$14,nullif($15,''),nullif($16,''),nullif($17,''),nullif($18,''),$19,$19)
+		values($1,$2,$3,$4,$5,nullif($6,''),nullif($7,''),nullif($8,''),nullif($9,''),
+		       $10,$11,$12,$13,nullif($14,''),nullif($15,''),nullif($16,''),nullif($17,''),$18,$18)
 		returning id::text`,
-		in.ProjectID, in.FeatureID, in.FolderID, publicID, seq, in.Title, in.Description, in.Preconditions,
+		in.ProjectID, in.FolderID, publicID, seq, in.Title, in.Description, in.Preconditions,
 		in.FinalExpected, in.TestDataNotes, in.Type, in.Priority, in.Status, in.AutomationStatus,
 		in.AutomationFramework, in.AutomationRef, in.AutomationRepoURL, in.JiraKeys, userID,
 	).Scan(&id)
@@ -2109,24 +1947,24 @@ func (s *Store) RecentAudit(ctx context.Context, limit int) ([]domain.AuditLog, 
 // ─── reports ─────────────────────────────────────────────────────────────────
 
 type ReportPayload struct {
-	TotalCases       int `json:"totalCases"`
-	AutomatedCount   int `json:"automatedCount"`
-	AutomationPct    int `json:"automationPct"`
-	AreaCoverage     []AreaCoverage     `json:"areaCoverage"`
-	Candidates       []Candidate        `json:"candidates"`
-	TopFailing       []TopFailing       `json:"topFailing"`
-	StaleAutomation  []TestCaseLite     `json:"staleAutomation"`
-	StaleManual      []StaleManual      `json:"staleManual"`
-	RecentlyExecuted int                `json:"recentlyExecuted"`
+	TotalCases       int              `json:"totalCases"`
+	AutomatedCount   int              `json:"automatedCount"`
+	AutomationPct    int              `json:"automationPct"`
+	FolderCoverage   []FolderCoverage `json:"folderCoverage"`
+	Candidates       []Candidate      `json:"candidates"`
+	TopFailing       []TopFailing     `json:"topFailing"`
+	StaleAutomation  []TestCaseLite   `json:"staleAutomation"`
+	StaleManual      []StaleManual    `json:"staleManual"`
+	RecentlyExecuted int              `json:"recentlyExecuted"`
 }
 
-type AreaCoverage struct {
-	AreaID         string `json:"areaId"`
-	Key            string `json:"key"`
-	Name           string `json:"name"`
-	Total          int    `json:"total"`
-	Automated      int    `json:"automated"`
-	AutomationPct  int    `json:"automationPct"`
+// FolderCoverage aggregates cases by their root (top-level) folder.
+type FolderCoverage struct {
+	FolderID      string `json:"folderId"`
+	Name          string `json:"name"`
+	Total         int    `json:"total"`
+	Automated     int    `json:"automated"`
+	AutomationPct int    `json:"automationPct"`
 }
 
 type Candidate struct {
@@ -2164,24 +2002,25 @@ func (s *Store) ProjectReport(ctx context.Context, projectID string) (*ReportPay
 	if rep.TotalCases > 0 {
 		rep.AutomationPct = rep.AutomatedCount * 100 / rep.TotalCases
 	}
-	// area coverage
-	areaMap := map[string]*AreaCoverage{}
+	// folder coverage, grouped by each case's root (top-level) folder
+	folderMap := map[string]*FolderCoverage{}
 	for _, c := range cases {
-		a, ok := areaMap[c.AreaID]
+		root := rootFolderName(c.FolderPath, c.FolderName)
+		a, ok := folderMap[root]
 		if !ok {
-			a = &AreaCoverage{AreaID: c.AreaID, Key: c.AreaKey, Name: c.AreaName}
-			areaMap[c.AreaID] = a
+			a = &FolderCoverage{FolderID: root, Name: root}
+			folderMap[root] = a
 		}
 		a.Total++
 		if c.AutomationStatus == "full" || c.AutomationStatus == "partial" {
 			a.Automated++
 		}
 	}
-	for _, a := range areaMap {
+	for _, a := range folderMap {
 		if a.Total > 0 {
 			a.AutomationPct = a.Automated * 100 / a.Total
 		}
-		rep.AreaCoverage = append(rep.AreaCoverage, *a)
+		rep.FolderCoverage = append(rep.FolderCoverage, *a)
 	}
 	// run/fail counts per case (across all runs for project)
 	runRows, err := s.Pool.Query(ctx, `

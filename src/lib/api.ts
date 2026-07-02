@@ -100,36 +100,11 @@ export type Project = {
 
 export type ProjectSummary = Project & {
   testCaseCount: number;
-  areaCount: number;
+  folderCount: number;
   runCount: number;
   activeRunCount: number;
   automatedCount: number;
 };
-
-export type Area = {
-  id: ID;
-  projectId: ID;
-  key: string;
-  name: string;
-  description: string | null;
-  displayOrder: number;
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Feature = {
-  id: ID;
-  areaId: ID;
-  name: string;
-  description: string | null;
-  displayOrder: number;
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AreaWithFeatures = Area & { features: Feature[] };
 
 export type FolderNode = {
   id: ID;
@@ -153,11 +128,9 @@ export type TestCase = {
   projectId: ID;
   projectKey: string;
   projectName: string;
-  featureId: ID;
-  featureName: string;
-  areaId: ID;
-  areaName: string;
-  areaKey: string;
+  folderId: ID;
+  folderName: string;
+  folderPath: string;
   publicId: string;
   sequenceNum: number;
   title: string;
@@ -233,7 +206,7 @@ export type Template = {
 
 export type TestCaseInput = {
   projectId?: ID;
-  featureId: ID;
+  folderId: ID;
   title: string;
   description: string;
   preconditions: string;
@@ -368,9 +341,8 @@ export type ReportPayload = {
   automatedCount: number;
   automationPct: number;
   recentlyExecuted: number;
-  areaCoverage: {
-    areaId: ID;
-    key: string;
+  folderCoverage: {
+    folderId: ID;
     name: string;
     total: number;
     automated: number;
@@ -413,9 +385,7 @@ export const api = {
   patchProject: (id: ID, body: { name?: string; status?: string }) =>
     request<void>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
-  // hierarchy / areas / features
-  hierarchy: (projectId: ID) =>
-    request<AreaWithFeatures[]>(`/projects/${projectId}/hierarchy`),
+  // folders
   folders: (projectId: ID, includeArchived = false) =>
     request<FolderNode[]>(
       `/projects/${projectId}/folders${includeArchived ? "?includeArchived=1" : ""}`,
@@ -440,18 +410,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ direction }),
     }),
-  listAreas: (projectId: ID) => request<Area[]>(`/projects/${projectId}/areas`),
-  listFeatures: (projectId: ID) => request<Feature[]>(`/projects/${projectId}/features`),
-  createArea: (projectId: ID, input: { name: string; key?: string; description?: string }) =>
-    request<Area>(`/projects/${projectId}/areas`, { method: "POST", body: JSON.stringify(input) }),
-  patchArea: (id: ID, body: { archived?: boolean }) =>
-    request<void>(`/areas/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  reorderArea: (id: ID, direction: "up" | "down") =>
-    request<void>(`/areas/${id}/reorder`, { method: "POST", body: JSON.stringify({ direction }) }),
-  createFeature: (projectId: ID, input: { areaId: ID; name: string; description?: string }) =>
-    request<Feature>(`/projects/${projectId}/features`, { method: "POST", body: JSON.stringify(input) }),
-  patchFeature: (id: ID, body: { archived?: boolean; targetAreaId?: ID }) =>
-    request<void>(`/features/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   // cases
   listCases: (projectId: ID, params: Record<string, string | undefined>) => {

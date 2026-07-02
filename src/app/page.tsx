@@ -102,9 +102,9 @@ export default async function HomePage({
                       </div>
                       <div>
                         <div className="text-base font-semibold text-(--fg)">
-                          {p.areaCount}
+                          {p.folderCount}
                         </div>
-                        <div>Areas</div>
+                        <div>Folders</div>
                       </div>
                       <div>
                         <div className="text-base font-semibold text-(--fg)">

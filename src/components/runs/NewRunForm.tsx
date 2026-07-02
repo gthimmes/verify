@@ -17,10 +17,9 @@ type CaseLite = {
   type: string;
   status: string;
   automationStatus: string;
-  featureId: string;
-  featureName: string;
-  areaId: string;
-  areaName: string;
+  folderId: string;
+  folderName: string;
+  folderPath: string;
   dataRowCount: number;
   tags: string[];
 };
@@ -76,34 +75,20 @@ export function NewRunForm({
     });
   }, [cases, priority, type, automation, tag, search]);
 
-  // Group by area > feature
+  // Group by folder
   const grouped = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; features: Map<string, { name: string; cases: CaseLite[] }> }
-    >();
+    const map = new Map<string, { name: string; cases: CaseLite[] }>();
     for (const c of filtered) {
-      const a = map.get(c.areaId) ?? {
-        name: c.areaName,
-        features: new Map(),
-      };
-      const f = a.features.get(c.featureId) ?? {
-        name: c.featureName,
+      const g = map.get(c.folderId) ?? {
+        name: c.folderPath || c.folderName || "(unfiled)",
         cases: [],
       };
-      f.cases.push(c);
-      a.features.set(c.featureId, f);
-      map.set(c.areaId, a);
+      g.cases.push(c);
+      map.set(c.folderId, g);
     }
-    return [...map.entries()].map(([areaId, a]) => ({
-      areaId,
-      areaName: a.name,
-      features: [...a.features.entries()].map(([featureId, f]) => ({
-        featureId,
-        featureName: f.name,
-        cases: f.cases,
-      })),
-    }));
+    return [...map.entries()]
+      .map(([folderId, g]) => ({ folderId, folderName: g.name, cases: g.cases }))
+      .sort((a, b) => a.folderName.localeCompare(b.folderName));
   }, [filtered]);
 
   const totalSelected = filtered.filter((c) => selected.has(c.id)).length;
@@ -119,20 +104,11 @@ export function NewRunForm({
       return next;
     });
   }
-  function toggleFeature(featureId: string, on: boolean) {
+  function toggleFolder(folderId: string, on: boolean) {
     setSelected((prev) => {
       const next = new Set(prev);
       filtered
-        .filter((c) => c.featureId === featureId)
-        .forEach((c) => (on ? next.add(c.id) : next.delete(c.id)));
-      return next;
-    });
-  }
-  function toggleArea(areaId: string, on: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      filtered
-        .filter((c) => c.areaId === areaId)
+        .filter((c) => c.folderId === folderId)
         .forEach((c) => (on ? next.add(c.id) : next.delete(c.id)));
       return next;
     });
@@ -340,67 +316,51 @@ export function NewRunForm({
               No cases match the current filter.
             </p>
           ) : (
-            grouped.map((area) => (
-              <div key={area.areaId} className="border-b border-(--border)">
+            grouped.map((group) => (
+              <div key={group.folderId} className="border-b border-(--border)">
                 <div className="flex items-center gap-2 bg-(--bg) px-4 py-2">
                   <input
                     type="checkbox"
-                    checked={area.features
-                      .flatMap((f) => f.cases)
-                      .every((c) => selected.has(c.id))}
-                    onChange={(e) => toggleArea(area.areaId, e.target.checked)}
+                    checked={group.cases.every((c) => selected.has(c.id))}
+                    onChange={(e) => toggleFolder(group.folderId, e.target.checked)}
                   />
                   <span className="text-xs font-semibold uppercase tracking-wide">
-                    {area.areaName}
+                    {group.folderName}
                   </span>
                   <span className="text-xs text-(--muted)">
-                    {area.features.flatMap((f) => f.cases).length} cases
+                    {group.cases.length} cases
                   </span>
                 </div>
-                {area.features.map((f) => (
-                  <div key={f.featureId}>
-                    <div className="flex items-center gap-2 px-6 py-1.5">
+                <ul>
+                  {group.cases.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-center gap-3 px-8 py-1.5 text-sm hover:bg-(--accent-soft)"
+                    >
                       <input
                         type="checkbox"
-                        checked={f.cases.every((c) => selected.has(c.id))}
-                        onChange={(e) =>
-                          toggleFeature(f.featureId, e.target.checked)
-                        }
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleCase(c.id)}
+                        data-testid="case-checkbox"
                       />
-                      <span className="text-xs font-medium">{f.featureName}</span>
-                    </div>
-                    <ul>
-                      {f.cases.map((c) => (
-                        <li
-                          key={c.id}
-                          className="flex items-center gap-3 px-10 py-1.5 text-sm hover:bg-(--accent-soft)"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected.has(c.id)}
-                            onChange={() => toggleCase(c.id)}
-                            data-testid="case-checkbox"
-                          />
-                          <span className="font-mono text-xs text-(--muted)">
-                            {c.publicId}
-                          </span>
-                          <span className="flex-1 truncate">{c.title}</span>
-                          {c.dataRowCount > 0 ? (
-                            <span className="text-[11px] text-(--muted)">
-                              ×{c.dataRowCount} rows
-                            </span>
-                          ) : null}
-                          <Badge tone={priorityTone(c.priority)}>
-                            {c.priority}
-                          </Badge>
-                          <Badge tone={automationTone(c.automationStatus)}>
-                            {c.automationStatus === "full" ? "auto" : c.automationStatus === "partial" ? "partial" : "manual"}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                      <span className="font-mono text-xs text-(--muted)">
+                        {c.publicId}
+                      </span>
+                      <span className="flex-1 truncate">{c.title}</span>
+                      {c.dataRowCount > 0 ? (
+                        <span className="text-[11px] text-(--muted)">
+                          ×{c.dataRowCount} rows
+                        </span>
+                      ) : null}
+                      <Badge tone={priorityTone(c.priority)}>
+                        {c.priority}
+                      </Badge>
+                      <Badge tone={automationTone(c.automationStatus)}>
+                        {c.automationStatus === "full" ? "auto" : c.automationStatus === "partial" ? "partial" : "manual"}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))
           )}

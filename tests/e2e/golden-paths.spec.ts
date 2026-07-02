@@ -32,7 +32,7 @@ test.describe("Verify — golden paths", () => {
     await expect(page.locator('[data-project-key="ACM"]')).toBeVisible();
   });
 
-  test("create a new project, area, and feature", async ({ page }) => {
+  test("create a new project and a folder", async ({ page }) => {
     const stamp = Date.now();
     await page.goto("/?list=1");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
@@ -47,23 +47,13 @@ test.describe("Verify — golden paths", () => {
     await expect(page).toHaveURL(/\/projects\/[\w-]+\/cases$/);
     await expect(page.getByText("Smoke Project " + stamp).first()).toBeVisible();
 
-    // Area + feature creation lives on the project overview page.
-    const projectUrl = new URL(page.url());
-    const overviewPath = projectUrl.pathname.replace(/\/cases$/, "/overview");
-    await page.goto(overviewPath);
+    // Folder creation lives in the Cases sidebar (the folder tree).
+    await page.getByTestId("new-folder-open").click();
+    await page.getByTestId("new-folder-input").fill("Checkout");
+    await page.getByTestId("new-folder-save").click();
     await expect(
-      page.getByRole("heading", { name: new RegExp(`Smoke Project ${stamp}`) }),
+      page.getByTestId("folder-link").filter({ hasText: "Checkout" }),
     ).toBeVisible();
-
-    const areaDialog = await openDialog(page, page.getByTestId("new-area-button").first());
-    await areaDialog.getByTestId("area-name-input").fill("Checkout");
-    await areaDialog.getByTestId("area-submit").click();
-    await expect(page.getByText("Checkout").first()).toBeVisible();
-
-    const featureDialog = await openDialog(page, page.getByTestId("new-feature-button").first());
-    await featureDialog.getByTestId("feature-name-input").fill("Cart");
-    await featureDialog.getByTestId("feature-submit").click();
-    await expect(page.getByText("Cart").first()).toBeVisible();
   });
 
   test("authoring a test case persists steps and parameters", async ({ page }) => {
@@ -77,7 +67,7 @@ test.describe("Verify — golden paths", () => {
     const stamp = Date.now();
     await page.getByTestId("case-title").fill(`Apple Pay invoice ${stamp}`);
     await page
-      .getByTestId("case-feature")
+      .getByTestId("case-folder")
       .selectOption({ label: "Payments › One-time payment" });
     await page.getByTestId("case-description").fill("Apple Pay should charge and confirm.");
     await page.getByTestId("case-tags").fill("smoke, P0");

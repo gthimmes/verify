@@ -11,12 +11,12 @@ import {
 } from "@/app/actions/testCases";
 import type { Template } from "@/lib/api";
 
-type FeatureOption = { id: string; name: string; areaName: string };
+type FolderOption = { id: string; label: string };
 
 export type TestCaseFormInitial = {
   id?: string;
   projectId: string;
-  featureId: string;
+  folderId: string;
   title: string;
   description: string;
   preconditions: string;
@@ -41,20 +41,20 @@ const initialState: TestCaseFormState = { ok: true };
 export function TestCaseForm({
   mode,
   initial,
-  features,
+  folders,
   projectId,
   templates = [],
 }: {
   mode: "create" | "edit";
   initial: TestCaseFormInitial;
-  features: FeatureOption[];
+  folders: FolderOption[];
   projectId: string;
   templates?: Template[];
 }) {
   const submit = mode === "create" ? createTestCase : updateTestCase;
   const [state, formAction, pending] = useActionState(submit, initialState);
 
-  const [featureId, setFeatureId] = useState(initial.featureId);
+  const [folderId, setFolderId] = useState(initial.folderId);
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description);
   const [preconditions, setPreconditions] = useState(initial.preconditions);
@@ -249,23 +249,23 @@ export function TestCaseForm({
               />
             </Field>
             <Field
-              label="Feature"
+              label="Folder"
               required
-              htmlFor="featureId"
-              error={state.fieldErrors?.featureId}
+              htmlFor="folderId"
+              error={state.fieldErrors?.folderId}
             >
               <Select
-                id="featureId"
-                name="featureId"
-                value={featureId}
-                onChange={(e) => setFeatureId(e.target.value)}
+                id="folderId"
+                name="folderId"
+                value={folderId}
+                onChange={(e) => setFolderId(e.target.value)}
                 required
-                data-testid="case-feature"
+                data-testid="case-folder"
               >
-                <option value="">— Select a feature —</option>
-                {features.map((f) => (
+                <option value="">— Select a folder —</option>
+                {folders.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.areaName} › {f.name}
+                    {f.label}
                   </option>
                 ))}
               </Select>

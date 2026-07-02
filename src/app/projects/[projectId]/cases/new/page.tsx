@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { TestCaseForm } from "@/components/testcases/TestCaseForm";
+import { folderOptions } from "@/lib/folders";
 
 export const dynamic = "force-dynamic";
 
@@ -10,21 +11,22 @@ export default async function NewCasePage({
   searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ featureId?: string }>;
+  searchParams: Promise<{ folderId?: string }>;
 }) {
   const { projectId } = await params;
-  const { featureId } = await searchParams;
-  let project, features, areas, templates;
+  const { folderId } = await searchParams;
+  let project, folders, templates;
   try {
-    [project, features, areas, templates] = await Promise.all([
+    [project, folders, templates] = await Promise.all([
       api.getProject(projectId),
-      api.listFeatures(projectId),
-      api.listAreas(projectId),
+      api.folders(projectId),
       api.listTemplates(),
     ]);
   } catch {
     return notFound();
   }
+
+  const options = folderOptions(folders);
 
   return (
     <PageContainer>
@@ -41,14 +43,10 @@ export default async function NewCasePage({
         mode="create"
         projectId={projectId}
         templates={templates}
-        features={features.map((f) => ({
-          id: f.id,
-          name: f.name,
-          areaName: areas.find((a) => a.id === f.areaId)?.name ?? "?",
-        }))}
+        folders={options}
         initial={{
           projectId,
-          featureId: featureId ?? "",
+          folderId: folderId ?? "",
           title: "",
           description: "",
           preconditions: "",

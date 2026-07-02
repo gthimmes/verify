@@ -61,7 +61,7 @@ export default async function SearchPage({
                     <Badge tone={automationTone(c.automationStatus)}>{c.automationStatus}</Badge>
                   </div>
                   <div className="mt-1 text-xs text-(--muted)">
-                    {c.projectName} · {c.areaName} › {c.featureName}
+                    {c.projectName} · {c.folderPath || c.folderName}
                   </div>
                   {c.description ? (
                     <p className="mt-1 line-clamp-2 text-sm text-(--muted)">{c.description}</p>

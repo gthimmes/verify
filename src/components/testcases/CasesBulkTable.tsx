@@ -169,7 +169,7 @@ export function CasesBulkTable({
             </th>
             <th className="px-3 py-2 text-xs font-medium text-(--muted)">ID</th>
             <th className="px-3 py-2 text-xs font-medium text-(--muted)">Title</th>
-            <th className="px-3 py-2 text-xs font-medium text-(--muted)">Feature</th>
+            <th className="px-3 py-2 text-xs font-medium text-(--muted)">Folder</th>
             <th className="px-3 py-2 text-xs font-medium text-(--muted)">Priority</th>
             <th className="px-3 py-2 text-xs font-medium text-(--muted)">Type</th>
             <th className="px-3 py-2 text-xs font-medium text-(--muted)">Status</th>
@@ -223,7 +223,7 @@ export function CasesBulkTable({
                   ) : null}
                 </td>
                 <td className="px-3 py-2 text-xs text-(--muted)">
-                  {c.areaName} › {c.featureName}
+                  {c.folderPath || c.folderName}
                 </td>
                 <td className="px-3 py-2">
                   <Badge tone={priorityTone(c.priority)}>{c.priority}</Badge>

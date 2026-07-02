@@ -112,11 +112,6 @@ func Apply(ctx context.Context, s *store.Store, plan Plan, ownerID string) (Appl
 	}
 	preExisting := countFolders(beforeFolders)
 
-	featureID, err := pickAnyFeature(ctx, s, pid)
-	if err != nil {
-		return res, err
-	}
-
 	for _, item := range plan.Items {
 		key := strings.Join(item.FolderPath.Segments, "\x00")
 		folderID, ok := folderCache[key]
@@ -128,7 +123,7 @@ func Apply(ctx context.Context, s *store.Store, plan Plan, ownerID string) (Appl
 			folderCache[key] = fid
 			folderID = fid
 		}
-		in := buildCaseInput(item, pid, featureID, folderID)
+		in := buildCaseInput(item, pid, folderID)
 		if _, err := s.CreateTestCase(ctx, in, ownerID); err != nil {
 			return res, fmt.Errorf("create case %q (%s): %w", item.Row.Title, item.Row.TestinyID, err)
 		}
@@ -155,41 +150,14 @@ func countFolders(roots []*domain.FolderNode) int {
 	return total
 }
 
-// pickAnyFeature returns a feature id under the project, creating a
-// throwaway "(legacy)" area+feature if none exists.  Once the legacy
-// test_cases.feature_id column is dropped, this whole helper goes away.
-func pickAnyFeature(ctx context.Context, s *store.Store, projectID string) (string, error) {
-	features, err := s.ListFeatures(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	if len(features) > 0 {
-		return features[0].ID, nil
-	}
-	a, err := s.CreateArea(ctx, domain.CreateAreaInput{
-		ProjectID: projectID, Key: "IMP", Name: "(legacy)",
-	})
-	if err != nil {
-		return "", err
-	}
-	f, err := s.CreateFeature(ctx, domain.CreateFeatureInput{
-		ProjectID: projectID, AreaID: a.ID, Name: "(legacy)",
-	})
-	if err != nil {
-		return "", err
-	}
-	return f.ID, nil
-}
-
-func buildCaseInput(item PlannedCase, projectID, featureID, folderID string) domain.TestCaseInput {
+func buildCaseInput(item PlannedCase, projectID, folderID string) domain.TestCaseInput {
 	steps := make([]domain.TestStep, 0, len(item.Steps))
 	for i, s := range item.Steps {
 		steps = append(steps, domain.TestStep{Order: i, Action: s.Action, Expected: s.Expected})
 	}
 	return domain.TestCaseInput{
 		ProjectID:        projectID,
-		FeatureID:        featureID,
-		FolderID:         &folderID,
+		FolderID:         folderID,
 		Title:            item.Row.Title,
 		Preconditions:    item.Row.Precondition,
 		Type:             item.Type,

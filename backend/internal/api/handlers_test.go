@@ -73,16 +73,12 @@ func TestSearch_endpointReturnsMatches(t *testing.T) {
 	do(t, "POST", srv.URL+"/api/v1/projects", map[string]string{"name": "Searchable", "key": "SCH"}, &p)
 	pid := p["id"].(string)
 
-	var area map[string]any
-	do(t, "POST", srv.URL+"/api/v1/projects/"+pid+"/areas", map[string]string{"name": "Area", "key": "AAA"}, &area)
-	aid := area["id"].(string)
-
-	var feat map[string]any
-	do(t, "POST", srv.URL+"/api/v1/projects/"+pid+"/features", map[string]string{"areaId": aid, "name": "Feature"}, &feat)
-	fid := feat["id"].(string)
+	var folder map[string]any
+	do(t, "POST", srv.URL+"/api/v1/projects/"+pid+"/folders", map[string]string{"name": "Folder"}, &folder)
+	fid := folder["id"].(string)
 
 	caseBody := map[string]any{
-		"featureId": fid, "title": "Refund a card", "description": "tests refunds",
+		"folderId": fid, "title": "Refund a card", "description": "tests refunds",
 		"type": "regression", "priority": "high", "status": "active", "automationStatus": "not_automated",
 		"steps": []map[string]any{{"order": 0, "action": "click refund", "expected": "ok"}},
 	}

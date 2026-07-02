@@ -15,13 +15,11 @@ func TestAttachments_uploadListDownloadDelete(t *testing.T) {
 	var p map[string]any
 	do(t, "POST", base+"/projects", map[string]string{"name": "Att Co", "key": "ATT"}, &p)
 	pid := p["id"].(string)
-	var area map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/areas", map[string]string{"name": "Area", "key": "ARE"}, &area)
-	var feat map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/features", map[string]string{"areaId": area["id"].(string), "name": "Feat"}, &feat)
+	var folder map[string]any
+	do(t, "POST", base+"/projects/"+pid+"/folders", map[string]string{"name": "Folder"}, &folder)
 	var c map[string]any
 	do(t, "POST", base+"/projects/"+pid+"/cases", map[string]any{
-		"featureId": feat["id"].(string), "title": "Has files", "type": "functional",
+		"folderId": folder["id"].(string), "title": "Has files", "type": "functional",
 		"priority": "low", "status": "active", "automationStatus": "not_automated",
 		"steps": []map[string]any{{"order": 0, "action": "x", "expected": "y"}},
 	}, &c)

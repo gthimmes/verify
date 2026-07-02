@@ -16,12 +16,9 @@ func TestTypeEnum_acceptsAllSupportedValues(t *testing.T) {
 	var p map[string]any
 	do(t, "POST", base+"/projects", map[string]string{"name": "Type Enum", "key": "TYP"}, &p)
 	pid := p["id"].(string)
-	var a map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/areas", map[string]string{"name": "Area", "key": "AAA"}, &a)
-	aid := a["id"].(string)
-	var f map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/features", map[string]string{"areaId": aid, "name": "Feature"}, &f)
-	fid := f["id"].(string)
+	var folder map[string]any
+	do(t, "POST", base+"/projects/"+pid+"/folders", map[string]string{"name": "Folder"}, &folder)
+	fid := folder["id"].(string)
 
 	supported := []string{
 		"functional",
@@ -39,7 +36,7 @@ func TestTypeEnum_acceptsAllSupportedValues(t *testing.T) {
 	for _, typ := range supported {
 		var got map[string]any
 		res := do(t, "POST", base+"/projects/"+pid+"/cases", map[string]any{
-			"featureId": fid, "title": "case " + typ,
+			"folderId": fid, "title": "case " + typ,
 			"type": typ, "priority": "medium", "status": "active",
 			"automationStatus": "not_automated",
 			"steps": []map[string]any{{"order": 0, "action": "do", "expected": "ok"}},

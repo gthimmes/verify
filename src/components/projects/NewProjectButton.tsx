@@ -21,7 +21,7 @@ export function NewProjectButton() {
         open={open}
         onOpenChange={setOpen}
         title="Create project"
-        description="A project is the top of the hierarchy: areas → features → test cases."
+        description="A project is the top of the hierarchy: folders → test cases."
       >
         <form action={formAction} className="flex flex-col gap-4">
           <Field

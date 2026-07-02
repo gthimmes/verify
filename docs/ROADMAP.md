@@ -26,6 +26,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 - **Google sign-in** (additive): OAuth via Next + Go, httpOnly session cookie, header sign-in/out; demo fallback until enforcement lands.
 - **Templates**: org-wide reusable test-case scaffolds (`test_case_templates`), an `/admin/templates` CRUD, and a picker on the new-case form that prefills steps, classification, tags, and parameters.
 - **Auth enforcement & roles** (flag-gated via `AUTH_ENFORCED`): per-project roles (`project_members.role` admin/editor/viewer) with a Members management page, 401 for unauthenticated requests, and role-gated reads/writes/admin actions across project- and entity-scoped routes. Additive by default (demo fallback) until the flag is flipped.
+- **Folders are the only hierarchy**: the legacy `areas`/`features` tables and `test_cases.feature_id` were dropped (`0009`); cases carry a NOT-NULL `folder_id`, public-id middle keys derive from the root folder, and the UI (new/edit case, run builder, overview, reports) is fully folder-based.
 
 ## v1.x — fill the gaps the spec already signed off on
 
@@ -40,7 +41,7 @@ For reference (so future roadmap items don't accidentally re-list these):
 9. **Bulk operations.** ✅ Shipped: bulk priority/status/automation edit, move between folders, soft delete/restore, and add/remove tag on `/cases`.
 10. **Folder management.** ✅ Rename, create (root + subfolder), archive/unarchive (cascades to the subtree; hidden by default with a "Show archived" toggle), move to another parent (cycle-checked) and reorder among siblings — all from the cases sidebar "⋯" menu, audited in the Go store. Still to do: true drag-and-drop reordering (the current UI uses up/down + move-to-parent).
 11. **Test case relations and version history viewer.** ✅ Version diff viewer shipped (per-case timeline + field-level diff off `test_case_versions`). ✅ `test_case_relations` shipped: undirected "see also" links (normalized-pair unique index) with a typeahead picker and unlink on the case detail page.
-12. **Drop legacy areas/features tables** after the new-case form and run-creation flow are migrated to use folders directly (currently both still pass a synthesised `feature_id` to satisfy a not-null FK).
+12. **Drop legacy areas/features tables.** ✅ Shipped (`0009_drop_legacy_hierarchy.sql`): `areas`/`features` and `test_cases.feature_id` are gone; every case now points at a NOT-NULL `folder_id`. Public-id middle key derives from the case's root folder; case reads join `folders` and expose `folderId`/`folderName`/`folderPath`; the report's coverage is grouped by root folder; the new-case/edit forms use a folder picker, the run builder groups by folder, and the project overview is a folder summary (folder CRUD stays in the `/cases` sidebar). The Testiny importer files cases straight into folders (no synthesised feature).
 
 ## v1.x — testing & architecture hardening
 

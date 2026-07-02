@@ -90,11 +90,11 @@ func TestListProjects_summaryCountsAreAccurate(t *testing.T) {
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
 	makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Pay invoice",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Pay invoice",
 		AutomationStatus: "full",
 	}, uid)
 	makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Refund payment",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Refund payment",
 		AutomationStatus: "not_automated",
 	}, uid)
 
@@ -106,8 +106,8 @@ func TestListProjects_summaryCountsAreAccurate(t *testing.T) {
 		t.Fatalf("expected 1 project, got %d", len(rows))
 	}
 	r := rows[0]
-	if r.TestCaseCount != 2 || r.AutomatedCount != 1 || r.AreaCount != 1 {
-		t.Fatalf("unexpected counts: cases=%d auto=%d areas=%d", r.TestCaseCount, r.AutomatedCount, r.AreaCount)
+	if r.TestCaseCount != 2 || r.AutomatedCount != 1 || r.FolderCount != 1 {
+		t.Fatalf("unexpected counts: cases=%d auto=%d folders=%d", r.TestCaseCount, r.AutomatedCount, r.FolderCount)
 	}
 }
 

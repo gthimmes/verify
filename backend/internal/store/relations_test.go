@@ -68,7 +68,7 @@ func TestRelations_crossProjectRejected(t *testing.T) {
 	a2 := makeArea(t, s, p2.ID, "GEN", "General")
 	f2 := makeFeature(t, s, p2.ID, a2.ID, "Feature")
 	other := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p2.ID, FeatureID: f2.ID, Title: "Elsewhere",
+		ProjectID: p2.ID, FolderID: f2.ID, Title: "Elsewhere",
 		Priority: "low", AutomationStatus: "not_automated",
 	}, uid)
 

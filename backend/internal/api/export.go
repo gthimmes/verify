@@ -75,8 +75,6 @@ func (s *Server) exportCasesCSV(w http.ResponseWriter, r *http.Request) {
 		Priority:           q.Get("priority"),
 		Status:             q.Get("status"),
 		AutomationStatus:   q.Get("automationStatus"),
-		FeatureID:          q.Get("featureId"),
-		AreaID:             q.Get("areaId"),
 		FolderID:           q.Get("folderId"),
 		IncludeDescendants: q.Get("descendants") != "0",
 		Tag:                q.Get("tag"),
@@ -92,15 +90,14 @@ func (s *Server) exportCasesCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", csvFilename("cases", "")))
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{
-		"Case ID", "Title", "Area", "Feature", "Priority", "Type", "Status",
+		"Case ID", "Title", "Folder", "Priority", "Type", "Status",
 		"Automation", "Tags", "Jira Keys", "Updated At",
 	})
 	for _, c := range cases {
 		_ = cw.Write([]string{
 			c.PublicID,
 			c.Title,
-			c.AreaName,
-			c.FeatureName,
+			c.FolderPath,
 			c.Priority,
 			c.Type,
 			c.Status,

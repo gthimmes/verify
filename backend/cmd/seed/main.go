@@ -230,7 +230,7 @@ func wipe(ctx context.Context, pool *pgxpool.Pool) error {
 	tables := []string{
 		"execution_attempts", "test_executions", "run_snapshot_cases", "test_runs",
 		"test_case_versions", "test_case_data_rows", "test_case_params", "test_steps",
-		"test_case_tags", "test_cases", "features", "areas",
+		"test_case_tags", "test_cases", "folders",
 		"project_members", "projects", "tags", "audit_logs",
 	}
 	for _, t := range tables {
@@ -359,26 +359,21 @@ func buildInternal(ctx context.Context, st *store.Store, p *domain.Project) ([]s
 	return seedHierarchy(ctx, st, p, areas, cases)
 }
 
+// seedHierarchy maps the demo's Area > Feature layout onto nested folders:
+// each area becomes a top-level folder and each feature a child folder, with
+// cases filed under the feature folder.
 func seedHierarchy(ctx context.Context, st *store.Store, p *domain.Project, areas []areaSpec, byFeature map[string][]caseSpec) ([]seededCase, error) {
 	out := []seededCase{}
 	for _, a := range areas {
-		area, err := st.CreateArea(ctx, domain.CreateAreaInput{
-			ProjectID: p.ID, Name: a.name, Key: a.key, Description: a.desc,
-		})
-		if err != nil {
-			return nil, err
-		}
 		for _, f := range a.features {
-			feat, err := st.CreateFeature(ctx, domain.CreateFeatureInput{
-				ProjectID: p.ID, AreaID: area.ID, Name: f.name, Description: f.desc,
-			})
+			folderID, err := st.EnsureFolderPath(ctx, p.ID, []string{a.name, f.name})
 			if err != nil {
 				return nil, err
 			}
 			for _, c := range byFeature[f.name] {
 				in := domain.TestCaseInput{
 					ProjectID:           p.ID,
-					FeatureID:           feat.ID,
+					FolderID:            folderID,
 					Title:               c.title,
 					Description:         c.description,
 					Preconditions:       c.preconditions,

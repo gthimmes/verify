@@ -44,8 +44,8 @@ export default async function ReportsPage({
           subtitle={`${report.automatedCount} automated`}
         />
         <KPICard
-          label="Areas covered"
-          value={report.areaCoverage.length.toString()}
+          label="Folders covered"
+          value={report.folderCoverage.length.toString()}
         />
         <KPICard
           label="Cases recently run"
@@ -95,7 +95,7 @@ export default async function ReportsPage({
                           <span className="font-medium">{row.case.title}</span>
                         </Link>
                         <div className="text-[11px] text-(--muted)">
-                          {row.case.areaName} › {row.case.featureName}
+                          {row.case.folderPath || row.case.folderName}
                         </div>
                       </td>
                       <td className="px-3 py-2">
@@ -114,27 +114,26 @@ export default async function ReportsPage({
 
         <Card>
           <CardHeader
-            title="Coverage by area"
-            description="Where is the test catalog thick or thin? How automated is each area?"
+            title="Coverage by folder"
+            description="Where is the test catalog thick or thin? How automated is each top-level folder?"
           />
           <CardBody className="-m-5 p-0">
             <table className="min-w-full text-sm">
               <thead className="border-b border-(--border) bg-(--bg) text-left">
                 <tr>
-                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Area</th>
+                  <th className="px-3 py-2 text-xs font-medium text-(--muted)">Folder</th>
                   <th className="px-3 py-2 text-xs font-medium text-(--muted)">Cases</th>
                   <th className="px-3 py-2 text-xs font-medium text-(--muted)">Automation %</th>
                 </tr>
               </thead>
               <tbody>
-                {report.areaCoverage
+                {report.folderCoverage
                   .slice()
                   .sort((a, b) => b.total - a.total)
                   .map((a) => (
-                    <tr key={a.areaId} className="border-b border-(--border)">
+                    <tr key={a.folderId} className="border-b border-(--border)">
                       <td className="px-3 py-2">
-                        <Badge tone="default">{a.key}</Badge>{" "}
-                        <span className="ml-2">{a.name}</span>
+                        <span className="font-medium">{a.name}</span>
                       </td>
                       <td className="px-3 py-2 text-xs">{a.total}</td>
                       <td className="px-3 py-2">
@@ -245,7 +244,7 @@ export default async function ReportsPage({
                       <span className="flex-1 truncate">{row.case.title}</span>
                     </Link>
                     <div className="mt-0.5 text-xs text-(--muted)">
-                      {row.case.areaName} › {row.case.featureName} · last run:{" "}
+                      {row.case.folderPath || row.case.folderName} · last run:{" "}
                       {formatDate(row.lastRunAt)}
                     </div>
                   </li>

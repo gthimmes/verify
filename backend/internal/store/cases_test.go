@@ -15,8 +15,8 @@ func TestCreateTestCase_publicIDFormatAndSequence(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Pay invoice"}, uid)
-	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Refund"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Pay invoice"}, uid)
+	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Refund"}, uid)
 
 	if c1.PublicID != "ACM-PAY-0001" || c2.PublicID != "ACM-PAY-0002" {
 		t.Fatalf("ids: %s, %s", c1.PublicID, c2.PublicID)
@@ -32,7 +32,7 @@ func TestCreateTestCase_writesStepsParamsRowsAndTags(t *testing.T) {
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
 	in := domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Parameterized refund",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Parameterized refund",
 		Tags: []string{"smoke", "money"},
 		Steps: []domain.TestStep{
 			{Order: 0, Action: "Open {{method}} payment", Expected: "Modal opens"},
@@ -73,7 +73,7 @@ func TestCreateTestCase_emptyTitleIsRejected(t *testing.T) {
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
 	_, err := s.CreateTestCase(context.Background(), domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "x",
+		ProjectID: p.ID, FolderID: f.ID, Title: "x",
 	}, uid)
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -86,13 +86,13 @@ func TestUpdateTestCase_bumpsVersionAndResetsChildRows(t *testing.T) {
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
 	tc := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Original",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Original",
 		Tags:  []string{"smoke"},
 		Steps: []domain.TestStep{{Order: 0, Action: "step1", Expected: ""}},
 	}, uid)
 
 	updated, err := s.UpdateTestCase(context.Background(), tc.ID, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Updated", Type: "regression", Priority: "high",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Updated", Type: "regression", Priority: "high",
 		Status: "active", AutomationStatus: "partial", Tags: []string{"regression"},
 		Steps: []domain.TestStep{
 			{Order: 0, Action: "step1 v2", Expected: ""},
@@ -130,7 +130,7 @@ func TestSoftDeleteRestoreTestCase(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
-	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Some case"}, uid)
+	tc := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Some case"}, uid)
 
 	if err := s.SoftDeleteTestCase(context.Background(), tc.ID, true); err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestDuplicateTestCase_clonesEverything(t *testing.T) {
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
 	src := makeCase(t, s, domain.TestCaseInput{
-		ProjectID: p.ID, FeatureID: f.ID, Title: "Source",
+		ProjectID: p.ID, FolderID: f.ID, Title: "Source",
 		Tags:  []string{"smoke"},
 		Steps: []domain.TestStep{{Order: 0, Action: "s1", Expected: "e1"}},
 		Parameters: []domain.TestCaseParam{{Name: "method", Order: 0}},
@@ -189,9 +189,9 @@ func TestListTestCases_filterByPriorityAndAutomation(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Case Alpha", Priority: "critical", AutomationStatus: "full"}, uid)
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Case Beta", Priority: "low", AutomationStatus: "not_automated"}, uid)
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Case Gamma", Priority: "critical", AutomationStatus: "not_automated"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Case Alpha", Priority: "critical", AutomationStatus: "full"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Case Beta", Priority: "low", AutomationStatus: "not_automated"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Case Gamma", Priority: "critical", AutomationStatus: "not_automated"}, uid)
 
 	got, err := s.ListTestCases(context.Background(), store.CaseListFilter{
 		ProjectID: p.ID, Priority: "critical",
@@ -215,11 +215,11 @@ func TestListTestCases_searchHitsTitleAndSteps(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Refund credit card"}, uid)
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Pay invoice",
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Refund credit card"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Pay invoice",
 		Steps: []domain.TestStep{{Order: 0, Action: "use the refund button", Expected: ""}},
 	}, uid)
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Other"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Other"}, uid)
 
 	got, err := s.ListTestCases(context.Background(), store.CaseListFilter{ProjectID: p.ID, Q: "refund"})
 	if err != nil {
@@ -235,12 +235,12 @@ func TestSearchCases_acrossProjects(t *testing.T) {
 	p1 := makeProject(t, s, uid, "P1", "P1")
 	a1 := makeArea(t, s, p1.ID, "AA", "Area A")
 	f1 := makeFeature(t, s, p1.ID, a1.ID, "Feature A")
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p1.ID, FeatureID: f1.ID, Title: "Refund credit"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p1.ID, FolderID: f1.ID, Title: "Refund credit"}, uid)
 
 	p2 := makeProject(t, s, uid, "P2", "P2")
 	a2 := makeArea(t, s, p2.ID, "BB", "Area B")
 	f2 := makeFeature(t, s, p2.ID, a2.ID, "Feature B")
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p2.ID, FeatureID: f2.ID, Title: "Refund ACH"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p2.ID, FolderID: f2.ID, Title: "Refund ACH"}, uid)
 
 	got, err := s.SearchCases(context.Background(), "refund", 0)
 	if err != nil {
@@ -256,7 +256,7 @@ func TestCreateTestCase_writesAuditLog(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "Feature One")
-	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Audit case"}, uid)
+	makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Audit case"}, uid)
 	if got := testutil.AuditCount(t, testutil.Pool(t), "test_case.create"); got != 1 {
 		t.Fatalf("expected 1 create audit, got %d", got)
 	}

@@ -20,7 +20,7 @@ const ParamColumn = z.object({
 
 const Body = z.object({
   projectId: z.string(),
-  featureId: z.string(),
+  folderId: z.string().min(1, "Pick a folder"),
   title: z.string().min(2).max(240),
   description: z.string().max(4000).optional().or(z.literal("")),
   preconditions: z.string().max(4000).optional().or(z.literal("")),
@@ -69,7 +69,7 @@ function parse(fd: FormData) {
     .filter(Boolean);
   return {
     projectId: asString(fd.get("projectId")),
-    featureId: asString(fd.get("featureId")),
+    folderId: asString(fd.get("folderId")),
     title: asString(fd.get("title")),
     description: asString(fd.get("description")),
     preconditions: asString(fd.get("preconditions")),
@@ -119,7 +119,7 @@ function toApiInput(d: ParsedBody): TestCaseInput {
     order: i,
   }));
   return {
-    featureId: d.featureId,
+    folderId: d.folderId,
     title: d.title.trim(),
     description: d.description ?? "",
     preconditions: d.preconditions ?? "",

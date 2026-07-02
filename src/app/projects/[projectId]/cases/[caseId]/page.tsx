@@ -51,7 +51,7 @@ export default async function CaseDetailPage({
         }
         description={
           <span className="text-xs text-(--muted)">
-            {tc.areaName} › {tc.featureName}
+            {tc.folderPath || tc.folderName}
           </span>
         }
         actions={

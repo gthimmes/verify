@@ -13,9 +13,6 @@ func TestProjectReport_aggregatesBasicMetrics(t *testing.T) {
 
 	// add a fully-automated case + a partially-automated one to exercise the count
 	_ = caseIDs
-	pidAuto := pid
-	a := domain.TestCaseInput{ProjectID: pidAuto, FeatureID: "", Title: "Auto"}
-	_ = a // we already have 3 cases (1 critical, 1 high, 1 high parameterized)
 
 	rep, err := s.ProjectReport(context.Background(), pid)
 	if err != nil {
@@ -27,8 +24,8 @@ func TestProjectReport_aggregatesBasicMetrics(t *testing.T) {
 	if rep.AutomationPct != 0 {
 		t.Fatalf("automationPct should be 0 for fixture, got %d", rep.AutomationPct)
 	}
-	if len(rep.AreaCoverage) != 1 {
-		t.Fatalf("expected 1 area, got %d", len(rep.AreaCoverage))
+	if len(rep.FolderCoverage) != 1 {
+		t.Fatalf("expected 1 folder, got %d", len(rep.FolderCoverage))
 	}
 }
 

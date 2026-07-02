@@ -12,11 +12,9 @@ import (
 // expected is the canonical list of tables.  Adding a new table means
 // updating this list, so a reviewer can see it on the diff.
 var expectedTables = []string{
-	"areas",
 	"attachments",
 	"audit_logs",
 	"execution_attempts",
-	"features",
 	"folders",
 	"project_members",
 	"projects",

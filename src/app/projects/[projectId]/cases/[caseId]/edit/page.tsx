@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { PageContainer, PageHeader } from "@/components/ui/PageHeader";
 import { TestCaseForm } from "@/components/testcases/TestCaseForm";
+import { folderOptions } from "@/lib/folders";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +12,18 @@ export default async function EditCasePage({
   params: Promise<{ projectId: string; caseId: string }>;
 }) {
   const { projectId, caseId } = await params;
-  let project, tc, features, areas;
+  let project, tc, folders;
   try {
-    [project, tc, features, areas] = await Promise.all([
+    [project, tc, folders] = await Promise.all([
       api.getProject(projectId),
       api.getCase(caseId),
-      api.listFeatures(projectId),
-      api.listAreas(projectId),
+      api.folders(projectId),
     ]);
   } catch {
     return notFound();
   }
+
+  const options = folderOptions(folders);
 
   return (
     <PageContainer>
@@ -38,15 +40,11 @@ export default async function EditCasePage({
       <TestCaseForm
         mode="edit"
         projectId={projectId}
-        features={features.map((f) => ({
-          id: f.id,
-          name: f.name,
-          areaName: areas.find((a) => a.id === f.areaId)?.name ?? "?",
-        }))}
+        folders={options}
         initial={{
           id: tc.id,
           projectId,
-          featureId: tc.featureId,
+          folderId: tc.folderId,
           title: tc.title,
           description: tc.description ?? "",
           preconditions: tc.preconditions ?? "",

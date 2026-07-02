@@ -135,81 +135,7 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
-// ─── areas + features ────────────────────────────────────────────────────────
-
-func (s *Server) listAreas(w http.ResponseWriter, r *http.Request) {
-	areas, err := s.Store.ListAreas(r.Context(), chi.URLParam(r, "projectId"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, areas)
-}
-
-func (s *Server) listHierarchy(w http.ResponseWriter, r *http.Request) {
-	tree, err := s.Store.ListAreasWithFeatures(r.Context(), chi.URLParam(r, "projectId"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, tree)
-}
-
-func (s *Server) createArea(w http.ResponseWriter, r *http.Request) {
-	projectID := chi.URLParam(r, "projectId")
-	var in domain.CreateAreaInput
-	if err := decode(r, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	in.ProjectID = projectID
-	a, err := s.Store.CreateArea(r.Context(), in)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 201, a)
-}
-
-func (s *Server) patchArea(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "areaId")
-	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByArea(r.Context(), id) }, rankEditor) {
-		return
-	}
-	var in struct {
-		Archived *bool `json:"archived"`
-	}
-	if err := decode(r, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	if in.Archived != nil {
-		if err := s.Store.SetAreaArchived(r.Context(), id, *in.Archived); err != nil {
-			writeErr(w, err)
-			return
-		}
-	}
-	writeJSON(w, 204, nil)
-}
-
-func (s *Server) reorderArea(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "areaId")
-	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByArea(r.Context(), id) }, rankEditor) {
-		return
-	}
-	var in struct {
-		Direction string `json:"direction"`
-	}
-	if err := decode(r, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	if err := s.Store.ReorderArea(r.Context(), id, in.Direction); err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 204, nil)
-}
+// ─── folders ─────────────────────────────────────────────────────────────────
 
 func (s *Server) listFolders(w http.ResponseWriter, r *http.Request) {
 	includeArchived := r.URL.Query().Get("includeArchived") == "1"
@@ -302,59 +228,6 @@ func (s *Server) reorderFolder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 204, nil)
 }
 
-func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {
-	features, err := s.Store.ListFeatures(r.Context(), chi.URLParam(r, "projectId"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, features)
-}
-
-func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
-	projectID := chi.URLParam(r, "projectId")
-	var in domain.CreateFeatureInput
-	if err := decode(r, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	in.ProjectID = projectID
-	f, err := s.Store.CreateFeature(r.Context(), in)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 201, f)
-}
-
-func (s *Server) patchFeature(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "featureId")
-	if !s.resolveAndAuthorize(w, r, func() (string, error) { return s.Store.ProjectIDByFeature(r.Context(), id) }, rankEditor) {
-		return
-	}
-	var in struct {
-		Archived     *bool   `json:"archived"`
-		TargetAreaID *string `json:"targetAreaId"`
-	}
-	if err := decode(r, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	if in.Archived != nil {
-		if err := s.Store.SetFeatureArchived(r.Context(), id, *in.Archived); err != nil {
-			writeErr(w, err)
-			return
-		}
-	}
-	if in.TargetAreaID != nil {
-		if err := s.Store.MoveFeature(r.Context(), id, *in.TargetAreaID); err != nil {
-			writeErr(w, err)
-			return
-		}
-	}
-	writeJSON(w, 204, nil)
-}
-
 // ─── test cases ──────────────────────────────────────────────────────────────
 
 func (s *Server) listCases(w http.ResponseWriter, r *http.Request) {
@@ -367,8 +240,6 @@ func (s *Server) listCases(w http.ResponseWriter, r *http.Request) {
 		Priority:           q.Get("priority"),
 		Status:             q.Get("status"),
 		AutomationStatus:   q.Get("automationStatus"),
-		FeatureID:          q.Get("featureId"),
-		AreaID:             q.Get("areaId"),
 		FolderID:           q.Get("folderId"),
 		IncludeDescendants: q.Get("descendants") != "0", // default ON for tree filter
 		Tag:                q.Get("tag"),

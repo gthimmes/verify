@@ -16,16 +16,12 @@ func buildRunWithExecutions(t *testing.T, base string) (string, string) {
 	do(t, "POST", base+"/projects", map[string]string{"name": "Export Co", "key": "EXP"}, &p)
 	pid := p["id"].(string)
 
-	var area map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/areas", map[string]string{"name": "Payments", "key": "PAY"}, &area)
-	aid := area["id"].(string)
-
-	var feat map[string]any
-	do(t, "POST", base+"/projects/"+pid+"/features", map[string]string{"areaId": aid, "name": "Refunds"}, &feat)
-	fid := feat["id"].(string)
+	var folder map[string]any
+	do(t, "POST", base+"/projects/"+pid+"/folders", map[string]string{"name": "Payments"}, &folder)
+	fid := folder["id"].(string)
 
 	caseBody := map[string]any{
-		"featureId": fid, "title": "Refund a card", "type": "regression",
+		"folderId": fid, "title": "Refund a card", "type": "regression",
 		"priority": "high", "status": "active", "automationStatus": "not_automated",
 		"tags":  []string{"smoke"},
 		"steps": []map[string]any{{"order": 0, "action": "click refund", "expected": "ok"}},
@@ -112,14 +108,17 @@ func TestExportCasesCSV(t *testing.T) {
 	if len(records) != 2 { // header + 1 case
 		t.Fatalf("expected header + 1 case, got %d rows", len(records))
 	}
-	if records[0][0] != "Case ID" || records[0][7] != "Automation" {
+	if records[0][0] != "Case ID" || records[0][2] != "Folder" || records[0][6] != "Automation" {
 		t.Fatalf("unexpected header: %v", records[0])
 	}
 	if records[1][0] != "EXP-PAY-0001" || records[1][1] != "Refund a card" {
 		t.Fatalf("unexpected row: %v", records[1])
 	}
-	if records[1][8] != "smoke" { // Tags column
-		t.Fatalf("tags: %q", records[1][8])
+	if records[1][2] != "Payments" { // Folder column
+		t.Fatalf("folder: %q", records[1][2])
+	}
+	if records[1][7] != "smoke" { // Tags column
+		t.Fatalf("tags: %q", records[1][7])
 	}
 }
 

@@ -25,22 +25,16 @@ func TestContract_fullEntityRoundTrip(t *testing.T) {
 	}
 	pid := project["id"].(string)
 
-	// 2. create an area + feature
-	var area map[string]any
-	res = do(t, "POST", base+"/projects/"+pid+"/areas",
-		map[string]string{"name": "Payments", "key": "PAY"}, &area)
+	// 2. create a folder (the public-id middle key derives from its name)
+	var folder map[string]any
+	res = do(t, "POST", base+"/projects/"+pid+"/folders",
+		map[string]string{"name": "Payments"}, &folder)
 	expectStatus(t, res, http.StatusCreated)
-	aid := area["id"].(string)
-
-	var feat map[string]any
-	res = do(t, "POST", base+"/projects/"+pid+"/features",
-		map[string]string{"areaId": aid, "name": "Refunds"}, &feat)
-	expectStatus(t, res, http.StatusCreated)
-	fid := feat["id"].(string)
+	fid := folder["id"].(string)
 
 	// 3. create a parameterized test case
 	caseBody := map[string]any{
-		"featureId": fid, "title": "Refund partial",
+		"folderId": fid, "title": "Refund partial",
 		"description": "issue partial refund", "preconditions": "have a paid invoice",
 		"type": "regression", "priority": "high", "status": "active",
 		"automationStatus": "not_automated", "tags": []string{"smoke", "money"},
@@ -61,7 +55,8 @@ func TestContract_fullEntityRoundTrip(t *testing.T) {
 	res = do(t, "POST", base+"/projects/"+pid+"/cases", caseBody, &tcase)
 	expectStatus(t, res, http.StatusCreated)
 	for _, f := range []string{"id", "publicId", "sequenceNum", "title", "type", "priority", "status",
-		"automationStatus", "tags", "steps", "parameters", "dataRows", "version", "createdByName"} {
+		"automationStatus", "tags", "steps", "parameters", "dataRows", "version", "createdByName",
+		"folderId", "folderName"} {
 		if _, ok := tcase[f]; !ok {
 			t.Fatalf("case missing %q", f)
 		}
@@ -132,7 +127,7 @@ func TestContract_fullEntityRoundTrip(t *testing.T) {
 	var report map[string]any
 	res = do(t, "GET", base+"/projects/"+pid+"/report", nil, &report)
 	expectStatus(t, res, http.StatusOK)
-	for _, f := range []string{"totalCases", "automationPct", "areaCoverage", "candidates", "topFailing", "staleAutomation", "staleManual"} {
+	for _, f := range []string{"totalCases", "automationPct", "folderCoverage", "candidates", "topFailing", "staleAutomation", "staleManual"} {
 		if _, ok := report[f]; !ok {
 			t.Fatalf("report missing %q", f)
 		}

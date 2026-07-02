@@ -30,7 +30,7 @@ test.describe("API contract — fields the UI consumes", () => {
         "createdAt",
         "updatedAt",
         "testCaseCount",
-        "areaCount",
+        "folderCount",
         "runCount",
         "activeRunCount",
         "automatedCount",
@@ -58,8 +58,8 @@ test.describe("API contract — fields the UI consumes", () => {
         "priority",
         "automationStatus",
         "tags",
-        "areaName",
-        "featureName",
+        "folderName",
+        "folderPath",
         "dataRowCount",
       ]) {
         expect(c, `${field} on case ${c.publicId as string}`).toHaveProperty(field);
@@ -106,7 +106,7 @@ test.describe("API contract — fields the UI consumes", () => {
     for (const field of [
       "totalCases",
       "automationPct",
-      "areaCoverage",
+      "folderCoverage",
       "candidates",
       "topFailing",
       "staleAutomation",

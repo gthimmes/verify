@@ -14,8 +14,8 @@ func TestBulkUpdateCases_setPriorityStatusAutomation(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Case one", Priority: "low"}, uid)
-	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Case two", Priority: "low"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Case one", Priority: "low"}, uid)
+	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Case two", Priority: "low"}, uid)
 	ids := []string{c1.ID, c2.ID}
 
 	n, err := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: ids, Op: "priority", Value: "critical"}, uid)
@@ -50,7 +50,7 @@ func TestBulkUpdateCases_moveToFolder(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Movable"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Movable"}, uid)
 
 	dest, err := s.CreateFolder(ctx, domain.CreateFolderInput{ProjectID: p.ID, Name: "Destination"})
 	if err != nil {
@@ -75,7 +75,7 @@ func TestBulkUpdateCases_deleteAndRestore(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Doomed"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Doomed"}, uid)
 
 	if _, err := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: []string{c1.ID}, Op: "delete"}, uid); err != nil {
 		t.Fatalf("bulk delete: %v", err)
@@ -104,8 +104,8 @@ func TestBulkUpdateCases_addAndRemoveTag(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Taggable one"}, uid)
-	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Taggable two", Tags: []string{"regression"}}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Taggable one"}, uid)
+	c2 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Taggable two", Tags: []string{"regression"}}, uid)
 	ids := []string{c1.ID, c2.ID}
 
 	// add "smoke" to both
@@ -155,7 +155,7 @@ func TestBulkUpdateCases_validation(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Guarded"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Guarded"}, uid)
 
 	cases := []domain.BulkCaseRequest{
 		{CaseIDs: nil, Op: "priority", Value: "high"},
@@ -176,7 +176,7 @@ func TestBulkUpdateCases_writesAudit(t *testing.T) {
 	p := makeProject(t, s, uid, "ACM", "Acme")
 	a := makeArea(t, s, p.ID, "PAY", "Payments")
 	f := makeFeature(t, s, p.ID, a.ID, "One-time")
-	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FeatureID: f.ID, Title: "Audited"}, uid)
+	c1 := makeCase(t, s, domain.TestCaseInput{ProjectID: p.ID, FolderID: f.ID, Title: "Audited"}, uid)
 
 	if _, err := s.BulkUpdateCases(ctx, domain.BulkCaseRequest{CaseIDs: []string{c1.ID}, Op: "priority", Value: "high"}, uid); err != nil {
 		t.Fatal(err)

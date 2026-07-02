@@ -118,55 +118,16 @@ type Project struct {
 // ProjectSummary is what the dashboard cards show.
 type ProjectSummary struct {
 	Project
-	TestCaseCount   int `json:"testCaseCount"`
-	AreaCount       int `json:"areaCount"`
-	RunCount        int `json:"runCount"`
-	ActiveRunCount  int `json:"activeRunCount"`
-	AutomatedCount  int `json:"automatedCount"`
+	TestCaseCount  int `json:"testCaseCount"`
+	FolderCount    int `json:"folderCount"`
+	RunCount       int `json:"runCount"`
+	ActiveRunCount int `json:"activeRunCount"`
+	AutomatedCount int `json:"automatedCount"`
 }
 
 type CreateProjectInput struct {
 	Name        string `json:"name"`
 	Key         string `json:"key"`
-	Description string `json:"description"`
-}
-
-// Area
-type Area struct {
-	ID           string    `json:"id"`
-	ProjectID    string    `json:"projectId"`
-	Key          string    `json:"key"`
-	Name         string    `json:"name"`
-	Description  *string   `json:"description"`
-	DisplayOrder int       `json:"displayOrder"`
-	Archived     bool      `json:"archived"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-}
-
-type CreateAreaInput struct {
-	ProjectID   string `json:"projectId"`
-	Name        string `json:"name"`
-	Key         string `json:"key"`
-	Description string `json:"description"`
-}
-
-// Feature
-type Feature struct {
-	ID           string    `json:"id"`
-	AreaID       string    `json:"areaId"`
-	Name         string    `json:"name"`
-	Description  *string   `json:"description"`
-	DisplayOrder int       `json:"displayOrder"`
-	Archived     bool      `json:"archived"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-}
-
-type CreateFeatureInput struct {
-	ProjectID   string `json:"projectId"`
-	AreaID      string `json:"areaId"`
-	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
@@ -225,11 +186,9 @@ type TestCase struct {
 	ProjectID                string     `json:"projectId"`
 	ProjectKey               string     `json:"projectKey"`
 	ProjectName              string     `json:"projectName"`
-	FeatureID                string     `json:"featureId"`
-	FeatureName              string     `json:"featureName"`
-	AreaID                   string     `json:"areaId"`
-	AreaName                 string     `json:"areaName"`
-	AreaKey                  string     `json:"areaKey"`
+	FolderID                 string     `json:"folderId"`
+	FolderName               string     `json:"folderName"`
+	FolderPath               string     `json:"folderPath"`
 	PublicID                 string     `json:"publicId"`
 	SequenceNum              int        `json:"sequenceNum"`
 	Title                    string     `json:"title"`
@@ -261,8 +220,7 @@ type TestCase struct {
 // TestCaseInput — payload for create + update.
 type TestCaseInput struct {
 	ProjectID           string            `json:"projectId"`
-	FeatureID           string            `json:"featureId"`
-	FolderID            *string           `json:"folderId,omitempty"`
+	FolderID            string            `json:"folderId"`
 	Title               string            `json:"title"`
 	Description         string            `json:"description"`
 	Preconditions       string            `json:"preconditions"`

@@ -32,26 +32,42 @@ func makeProject(t *testing.T, s *store.Store, ownerID, key, name string) *domai
 	return p
 }
 
-func makeArea(t *testing.T, s *store.Store, projectID, key, name string) *domain.Area {
+// makeArea creates a top-level folder (the area/feature layout is gone; these
+// helpers keep the older call sites working against the folder tree).
+func makeArea(t *testing.T, s *store.Store, projectID, key, name string) *domain.Folder {
 	t.Helper()
-	a, err := s.CreateArea(context.Background(), domain.CreateAreaInput{
-		ProjectID: projectID, Name: name, Key: key,
+	f, err := s.CreateFolder(context.Background(), domain.CreateFolderInput{
+		ProjectID: projectID, Name: name,
 	})
 	if err != nil {
-		t.Fatalf("create area: %v", err)
-	}
-	return a
-}
-
-func makeFeature(t *testing.T, s *store.Store, projectID, areaID, name string) *domain.Feature {
-	t.Helper()
-	f, err := s.CreateFeature(context.Background(), domain.CreateFeatureInput{
-		ProjectID: projectID, AreaID: areaID, Name: name,
-	})
-	if err != nil {
-		t.Fatalf("create feature: %v", err)
+		t.Fatalf("create folder (area): %v", err)
 	}
 	return f
+}
+
+// makeFeature creates a child folder under the given parent folder id.
+func makeFeature(t *testing.T, s *store.Store, projectID, areaID, name string) *domain.Folder {
+	t.Helper()
+	parent := areaID
+	f, err := s.CreateFolder(context.Background(), domain.CreateFolderInput{
+		ProjectID: projectID, ParentID: &parent, Name: name,
+	})
+	if err != nil {
+		t.Fatalf("create folder (feature): %v", err)
+	}
+	return f
+}
+
+// makeFolder creates a top-level folder and returns its id (for newer tests).
+func makeFolder(t *testing.T, s *store.Store, projectID, name string) string {
+	t.Helper()
+	f, err := s.CreateFolder(context.Background(), domain.CreateFolderInput{
+		ProjectID: projectID, Name: name,
+	})
+	if err != nil {
+		t.Fatalf("create folder: %v", err)
+	}
+	return f.ID
 }
 
 func makeCase(t *testing.T, s *store.Store, in domain.TestCaseInput, userID string) *domain.TestCase {
