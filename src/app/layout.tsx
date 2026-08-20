@@ -4,6 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 import { cookies } from "next/headers";
 import { CommandKLink } from "@/components/shell/CommandKLink";
+import { HelpWidget } from "@/components/shell/HelpWidget";
 import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { api } from "@/lib/api";
@@ -136,6 +137,7 @@ export default async function RootLayout({
             </span>
           </div>
         </footer>
+        <HelpWidget />
       </body>
     </html>
   );
