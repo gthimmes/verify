@@ -1990,7 +1990,14 @@ func (s *Store) ProjectReport(ctx context.Context, projectID string) (*ReportPay
 	if err != nil {
 		return nil, err
 	}
-	rep := &ReportPayload{}
+	// Non-nil slices: the UI iterates these and nil encodes as JSON null.
+	rep := &ReportPayload{
+		FolderCoverage:  []FolderCoverage{},
+		Candidates:      []Candidate{},
+		TopFailing:      []TopFailing{},
+		StaleAutomation: []TestCaseLite{},
+		StaleManual:     []StaleManual{},
+	}
 	rep.TotalCases = len(cases)
 	caseByID := map[string]TestCaseLite{}
 	for _, c := range cases {
