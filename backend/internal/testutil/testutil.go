@@ -24,8 +24,8 @@ import (
 const defaultURL = "postgres://verify:verify@localhost:5432/verify_test?sslmode=disable"
 
 var (
-	once   sync.Once
-	pool   *pgxpool.Pool
+	once     sync.Once
+	pool     *pgxpool.Pool
 	setupErr error
 )
 
@@ -63,8 +63,6 @@ func Reset(t *testing.T, pool *pgxpool.Pool) {
 		"test_case_tags",
 		"test_cases",
 		"folders",
-		"features",
-		"areas",
 		"project_members",
 		"projects",
 		"tags",

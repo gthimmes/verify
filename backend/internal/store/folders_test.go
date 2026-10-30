@@ -95,29 +95,15 @@ func TestFolderTree_rollsUpCaseCounts(t *testing.T) {
 	}
 }
 
-// makeCaseInFolder inserts a test case under a folder via raw SQL so we can
-// bypass the legacy feature_id requirement still present on the existing
-// CreateTestCase path.  Once feature_id is removed, this helper goes away.
+// makeCaseInFolder inserts a test case under a folder via raw SQL so the
+// folder-tree roll-ups can be exercised without the full CreateTestCase path.
 func makeCaseInFolder(t *testing.T, _ interface{}, projectID, folderID, userID, title string) {
 	t.Helper()
 	pool := testutil.Pool(t)
-	// pick any existing feature id to satisfy the legacy not-null FK
-	var featureID string
-	if err := pool.QueryRow(context.Background(),
-		`select id::text from features limit 1`).Scan(&featureID); err != nil {
-		// if no feature exists, create a transient area+feature so we can satisfy the FK
-		var areaID string
-		_ = pool.QueryRow(context.Background(),
-			`insert into areas(project_id, key, name) values($1, 'TMP', 'tmp') returning id::text`,
-			projectID).Scan(&areaID)
-		_ = pool.QueryRow(context.Background(),
-			`insert into features(area_id, name) values($1, 'tmp') returning id::text`,
-			areaID).Scan(&featureID)
-	}
 	if _, err := pool.Exec(context.Background(),
-		`insert into test_cases(project_id, feature_id, folder_id, public_id, sequence_num, title, created_by_id, updated_by_id)
-		   values($1, $2, $3, $4, (select coalesce(max(sequence_num), 0)+1 from test_cases where project_id = $1), $5, $6, $6)`,
-		projectID, featureID, folderID, "X-"+title, title, userID); err != nil {
+		`insert into test_cases(project_id, folder_id, public_id, sequence_num, title, created_by_id, updated_by_id)
+		   values($1, $2, $3, (select coalesce(max(sequence_num), 0)+1 from test_cases where project_id = $1), $4, $5, $5)`,
+		projectID, folderID, "X-"+title, title, userID); err != nil {
 		t.Fatalf("insert case: %v", err)
 	}
 }
